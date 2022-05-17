@@ -73,7 +73,7 @@ int main()
     float4x4.m[0][0] = 100.0f;
     M1 = XMLoadFloat4x4(&float4x4);
     cout << "M1 after loading: " << endl << M1;
-
+    
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
