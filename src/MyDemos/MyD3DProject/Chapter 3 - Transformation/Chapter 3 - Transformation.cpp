@@ -1,6 +1,7 @@
 // Chapter 3 - Transformation.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <d3d11.h>
 #include <iostream>
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
