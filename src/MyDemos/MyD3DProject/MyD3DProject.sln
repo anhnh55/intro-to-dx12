@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 3 - Transformation"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 4 - Direct3D Preliminaries", "Chapter 4 - Direct3D Preliminaries\Chapter 4 - Direct3D Preliminaries.vcxproj", "{B7786033-5C5F-48F6-AB98-95344D6BA547}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 4.2 - CPU GPU interaction", "Chapter 4.2 - CPU GPU interaction\Chapter 4.2 - CPU GPU interaction.vcxproj", "{848D39F0-9A41-4D3F-9B87-04A223E10A8E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -61,6 +63,14 @@ Global
 		{B7786033-5C5F-48F6-AB98-95344D6BA547}.Release|x64.Build.0 = Release|x64
 		{B7786033-5C5F-48F6-AB98-95344D6BA547}.Release|x86.ActiveCfg = Release|Win32
 		{B7786033-5C5F-48F6-AB98-95344D6BA547}.Release|x86.Build.0 = Release|Win32
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Debug|x64.ActiveCfg = Debug|x64
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Debug|x64.Build.0 = Debug|x64
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Debug|x86.ActiveCfg = Debug|Win32
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Debug|x86.Build.0 = Debug|Win32
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Release|x64.ActiveCfg = Release|x64
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Release|x64.Build.0 = Release|x64
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Release|x86.ActiveCfg = Release|Win32
+		{848D39F0-9A41-4D3F-9B87-04A223E10A8E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
