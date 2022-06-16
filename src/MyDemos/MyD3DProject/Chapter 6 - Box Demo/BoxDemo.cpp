@@ -119,7 +119,7 @@ bool BoxDemo::Initialize()
 	//D3D12_VERTEX_BUFFER_VIEW vertexBuffers[1] = { vBV };
 	//NumViews: The number of vertex buffers we are binding to the input slots.If the
 	//start slot has index k and we are binding n buffers, then we are binding buffers to
-	//input slots Ik, Ik + 1, …, Ik + n - 1.
+	//input slots Ik, Ik + 1, E Ik + n - 1.
 	D3D12_VERTEX_BUFFER_VIEW vertexBuffers[1] = { vBV }; // this step is meant to be in draw phase
 	mCommandList->IASetVertexBuffers(0, 1, vertexBuffers);
 	//then drawing code ID3D12CommandList::DrawInstanced, ID3D12GraphicsCommandList::IASetPrimitiveTopology  e.t.c...

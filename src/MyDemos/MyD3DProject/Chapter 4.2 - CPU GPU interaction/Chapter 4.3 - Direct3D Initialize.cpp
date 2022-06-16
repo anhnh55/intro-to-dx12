@@ -11,7 +11,7 @@
 
 #include <cassert>
 #include <d3d12.h>
-#include <d3dx12.h> //this is a helper header downloaded at https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/d3dx12.h
+#include "../../../Common/d3dx12.h" //this is a helper header downloaded at https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/d3dx12.h
 #include <dxgi1_4.h>
 #include <iostream>
 #include <wrl/client.h>
