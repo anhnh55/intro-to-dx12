@@ -24,7 +24,7 @@
     <ProjectGuid>{69f9b383-707a-4ca5-b6e9-20b350f2f4b1}</ProjectGuid>
     <RootNamespace>DirectXVector</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>Chapter1-DirectXVector</ProjectName>
+    <ProjectName>Chapter 1-DirectXVector</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

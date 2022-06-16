@@ -24,6 +24,7 @@
     <ProjectGuid>{ad7f3232-aa2c-441c-b891-15b140cdc477}</ProjectGuid>
     <RootNamespace>Chapter2Matrix</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Chapter 2 - Matrix</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
