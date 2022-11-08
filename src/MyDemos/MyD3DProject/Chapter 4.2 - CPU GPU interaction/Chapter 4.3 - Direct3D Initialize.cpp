@@ -46,16 +46,14 @@ int mCurrBackBuffer = 0; //to keep track of index of current back buffer
 int main()
 {
 	//1. Create the ID3D12Device using the D3D12CreateDevice function.
-	// Enable the D3D12 debug layer.
-	// Debug layer enable extra debugging information
+	// Enable the D3D12 debug layer: Debug layer enable extra debugging information
 #if defined(DEBUG) || defined(_DEBUG)
 	ComPtr<ID3D12Debug> debugController;
 	D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)); // IID_PPV_ARGS: retrieve an interface pointer
 	debugController->EnableDebugLayer();
 #endif
 
-	//create a DXGIFactory
-	//DXGIFactory to enable WARP (a fallback option if D3D device is failed to create)
+	//create a DXGIFactory to enable WARP (a fallback option if D3D device is failed to create)
 	CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory));
 
 	//Create hardware device
@@ -68,6 +66,7 @@ int main()
 	// WARP stands for Windows Advanced Rasterization Platform, a software adapter
 	if (FAILED(hardwareResult))
 	{
+		
 		ComPtr<IDXGIAdapter> pWarpAdapter;
 		mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter));
 		D3D12CreateDevice(
@@ -128,7 +127,7 @@ int main()
 	//buffer usage
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapChainDesc.BufferCount = SwapChainBufferCount;
-	swapChainDesc.OutputWindow = mhMainWnd;
+	swapChainDesc.OutputWindow = mhMainWnd; //need to initialize mainwnd
 	swapChainDesc.Windowed = true;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // D3D12 apps must use DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL or DXGI_SWAP_EFFECT_FLIP_DISCARD.
 	mdxgiFactory->CreateSwapChain(mCommandQueue.Get(), &swapChainDesc, &mSwapChain); // For Direct3D 12 first param is a pointer to a direct command queue

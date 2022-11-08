@@ -10,7 +10,7 @@ public:
         mIsConstantBuffer(isConstantBuffer)
     {
         mElementByteSize = sizeof(T);
-
+        
         // Constant buffer elements need to be multiples of 256 bytes.
         // This is because the hardware can only view constant data 
         // at m*256 byte offsets and of n*256 byte lengths. 
@@ -21,14 +21,19 @@ public:
         if(isConstantBuffer)
             mElementByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(T));
 
+        mBufferByteSize = mElementByteSize * elementCount;
         ThrowIfFailed(device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
             D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize*elementCount),
+            &CD3DX12_RESOURCE_DESC::Buffer(mBufferByteSize),
 			D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS(&mUploadBuffer)));
 
+        //This is to help CPU to get a pointer to a subresource in the resource
+        //0 mean the resource itself
+        //null pointer indicates the entire subresource might be read by the CPU.
+        //mMappedData will be the pointer we get after mapping
         ThrowIfFailed(mUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mMappedData)));
 
         // We do not need to unmap until we are done with the resource.  However, we must not write to
@@ -37,6 +42,8 @@ public:
 
     UploadBuffer(const UploadBuffer& rhs) = delete;
     UploadBuffer& operator=(const UploadBuffer& rhs) = delete;
+
+    //unmap the buffer after using
     ~UploadBuffer()
     {
         if(mUploadBuffer != nullptr)
@@ -50,9 +57,20 @@ public:
         return mUploadBuffer.Get();
     }
 
+    //copy data into buffer via pointer mMappedData
     void CopyData(int elementIndex, const T& data)
     {
         memcpy(&mMappedData[elementIndex*mElementByteSize], &data, sizeof(T));
+    }
+
+    UINT GetElementByteSize()
+    {
+        return mElementByteSize;
+    }
+
+    UINT GetBufferByteSize()
+    {
+        return mBufferByteSize;
     }
 
 private:
@@ -60,5 +78,6 @@ private:
     BYTE* mMappedData = nullptr;
 
     UINT mElementByteSize = 0;
+    UINT mBufferByteSize = 0;
     bool mIsConstantBuffer = false;
 };
