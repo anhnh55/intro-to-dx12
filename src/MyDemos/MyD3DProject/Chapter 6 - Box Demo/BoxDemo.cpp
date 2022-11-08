@@ -23,6 +23,21 @@ bool BoxDemo::Initialize()
 
 	BuildResources4ConstantBuffer();
 	BuildResources4GeometryData();
+	BuildRootSignature();
+	CompileShaders();
+	BuildPSO();
+
+	//in the build functions above we use some command list call so 
+	// now we have to execute the commands queue.
+	ThrowIfFailed(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// Wait until initialization is complete
+	//using Fence to synchronize between CPU and GPU
+	//this is a simple solution but CPU has to be idle while waiting for GPU
+	FlushCommandQueue();
+
 	return true;
 }
 
@@ -92,6 +107,12 @@ void BoxDemo::Draw(const GameTimer& gt)
 
 void BoxDemo::BuildResources4GeometryData()
 {
+	//input layout later will be included in Pipeline State Object
+	mInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
 	//vertex data
 	std::array<Vertex, 8> vertices =
 	{
@@ -200,4 +221,105 @@ void BoxDemo::BuildResources4ConstantBuffer()
 		&cbvDesc,
 		mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 	/*==*/
+}
+
+void BoxDemo::BuildRootSignature()
+{
+	// Shader programs typically require resources as input (constant buffers,
+	// textures, samplers).  The root signature defines the resources the shader
+	// programs expect.  If we think of the shader programs as a function, and
+	// the input resources as function parameters, then the root signature can be
+	// thought of as defining the function signature.
+
+	// Root parameter can be a table, root descriptor or root constants.
+	//in this box demo, shader require only one constant buffer so we need just 1 root parameter
+	//of type D3D12_DESCRIPTOR_RANGE_TYPE_CBV
+	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+	// Create a single descriptor table of CBVs.
+	CD3DX12_DESCRIPTOR_RANGE cbvTable;
+	//the third parameter 0 mean register(b0) in shader code below:
+	/*cbuffer cbPerObject : register(b0)
+	{
+		float4x4 gWorldViewProj;
+	};*/
+	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
+
+	// A root signature is an array of root parameters.
+	//D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT indicate to use mInputLayout??
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	//mRootSignature will be used later when we create Pipeline State Object
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(&mRootSignature)));
+}
+
+void BoxDemo::CompileShaders()
+{
+	//in this demo we use run-time  compiling method
+	//another method is offline-compiling using FXC tool
+	//if offline-compiling is used, the compiled file has to be loaded using d3dUtil::LoadBinary
+	mvsByteCode = d3dUtil::CompileShader(L"..\\Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"..\\Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+}
+
+void BoxDemo::BuildPSO()
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+	//quick way to initialize all struct members to zero
+	//because the struct D3D12_GRAPHICS_PIPELINE_STATE_DESC doesn't have default constructor
+	//don't know if this is lazy or good practice???
+	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+
+	//config input layout
+	psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+	//config root signature
+	psoDesc.pRootSignature = mRootSignature.Get();
+
+	//config VS
+	psoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()),
+		mvsByteCode->GetBufferSize()
+	};
+
+	//config FS
+	psoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()),
+		mpsByteCode->GetBufferSize()
+	};
+
+	//basically default settings
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = mBackBufferFormat;
+	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	psoDesc.DSVFormat = mDepthStencilFormat;
+
+	//create PSO
+	//PSO will be use when we draw object
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }

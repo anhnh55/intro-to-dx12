@@ -30,6 +30,7 @@ class BoxDemo : public D3DApp
 public:
 	BoxDemo(HINSTANCE hInstance);
 	~BoxDemo();
+	
 	virtual bool Initialize()override;
 
 private:
@@ -37,20 +38,20 @@ private:
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
 
-	D3D12_INPUT_ELEMENT_DESC* VertexDesc;
-	
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexBufferGPU;
-	Microsoft::WRL::ComPtr<ID3D12Resource> indexBufferGPU;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> vertexBufferUploaderGPU;
-	Microsoft::WRL::ComPtr<ID3D12Resource> indexBufferUploaderGPU;
-
 	//box geometry data and needed resources
 	void BuildResources4GeometryData();
 
 	//build resources needed for a constant buffer that hold 1 ObjectConstants
 	void BuildResources4ConstantBuffer();
 
+	//build root signature
+	void BuildRootSignature();
+
+	//compile VS and FS
+	void CompileShaders();
+
+	//build Pipeline State Object (PSO)
+	void BuildPSO();
 private:
 	//constant buffer descriptor heap
 	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
@@ -60,5 +61,20 @@ private:
 
 	//Geometry wrapper class for geometry data
 	std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
+
+	//root signature 
+	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+
+	//VS byte code
+	ComPtr<ID3DBlob> mvsByteCode = nullptr;
+
+	//FS byte code
+	ComPtr<ID3DBlob> mpsByteCode = nullptr;
+
+	//vertex input layout corresponding to struct Vertex
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
+	//Pipeline State Object
+	ComPtr<ID3D12PipelineState> mPSO = nullptr;
 };
 

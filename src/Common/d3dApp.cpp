@@ -3,6 +3,8 @@
 //***************************************************************************************
 
 #include "d3dApp.h"
+
+#include <iostream>
 #include <WindowsX.h>
 
 using Microsoft::WRL::ComPtr;
@@ -468,7 +470,7 @@ bool D3DApp::InitDirect3D()
 	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
 	
 #ifdef _DEBUG
-    LogAdapters();
+   // LogAdapters();
 #endif
 
 	CreateCommandObjects();
