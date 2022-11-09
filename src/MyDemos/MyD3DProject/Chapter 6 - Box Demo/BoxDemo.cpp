@@ -1,4 +1,4 @@
-#include "BoxDemo.h"
+﻿#include "BoxDemo.h"
 #include "d3d12.h"
 
 using namespace Microsoft::WRL;
@@ -43,66 +43,191 @@ bool BoxDemo::Initialize()
 
 void BoxDemo::OnResize()
 {
+	//resize swapchain buffer and depth/stencil buffer
 	D3DApp::OnResize();
+
+	// The window resized, so update the aspect ratio and recompute the projection matrix.
+	//Builds a left-handed perspective projection matrix based on a field of view.
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI, AspectRatio(), 1.0f, 1000.0f);
+	XMStoreFloat4x4(&mProj, P);
 }
 
 void BoxDemo::Update(const GameTimer& gt)
 {
+	// Convert Spherical to Cartesian coordinates.
+	//Todo: why we have this x,y,z calculation?
+	//Answer: x = rsin(phi)cos(theta)https://en.wikipedia.org/wiki/File:3D_Spherical_2.svg
+	//        z = rsin(phi)sin(theta) because z point into screen
+	//	      y = rcos(phi) because y point up
+	//	r ≥ 0,
+	//	0° < phi < 180°(π rad), 
+	//	0° ≤ theta < 360°(2π rad).
+	//we use the mouse to moving the camera around in a spherical coord
+	//sinf, cosf: just sin and cos in float
+	float x = mRadius * sinf(mPhi) * cosf(mTheta);
+	float z = mRadius * sinf(mPhi) * sinf(mTheta);
+	float y = mRadius * cosf(mPhi);
 
+	//then make the camera look at point 0,0,0
+	// Build the view matrix from 3 perpendicular vectors
+	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
+	XMVECTOR target = XMVectorZero();
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	XMStoreFloat4x4(&mView, view);
+
+	XMMATRIX world = XMLoadFloat4x4(&mWorld);
+	XMMATRIX proj = XMLoadFloat4x4(&mProj);
+	//compute world view projection matrix
+	XMMATRIX worldViewProj = world * view * proj;
+
+	// Update the constant buffer with the latest worldViewProj matrix.
+	ObjectConstants objConstants;
+	//Todo: why transpose the matrix?
+    //https://stackoverflow.com/questions/32037617/why-is-this-transpose-required-in-my-worldviewproj-matrix
+	//answer: CPU: row-major matrix, HLSL: column major matrix ==> has to transpose
+	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	mCBUploadHelper->CopyData(0, objConstants);
 }
 
 void BoxDemo::Draw(const GameTimer& gt)
 {
-	//// Reuse the memory associated with command recording.
-	//// We can only reset when the associated command lists have finished
-	//// execution on the GPU.
-	//ThrowIfFailed(mDirectCmdListAlloc->Reset());
-	//// A command list can be reset after it has been added to the
-	//// command queue via ExecuteCommandList. Reusing the command list reuses memory.
-	//ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));// Indicate a state transition on the resource usage.
+	/*==============set the setting that will be used===============*/
+	// Reuse the memory associated with command recording.
+	// We can only reset when the associated command lists have finished execution on the GPU.
+	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
-	//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
-	//	CurrentBackBuffer(),
-	//	D3D12_RESOURCE_STATE_PRESENT,
-	//	D3D12_RESOURCE_STATE_RENDER_TARGET));
+	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
+	// Reusing the command list reuses memory.
+	//assign Pipeline State Object mPSO to the command list
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
 
-	//// Set the viewport and scissor rect. This needs to be reset
-	//// whenever the command list is reset.
-	//mCommandList->RSSetViewports(1, &mScreenViewport);
-	//mCommandList->RSSetScissorRects(1, &mScissorRect);
+	//set viewport and scissor rectangle
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-	//// Clear the back buffer and depth buffer.
-	//mCommandList->ClearRenderTargetView(
-	//	CurrentBackBufferView(),
-	//	Colors::DarkOliveGreen, 0, nullptr);
+	// Indicate a state transition on the resource usage.
+	//current back buffer change to render target state
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	//mCommandList->ClearDepthStencilView(
-	//	DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH |
-	//	D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	// Clear the back buffer and depth buffer.
+	// Set all back buffer to LightSteelBlue
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	/*===================================*/
 
-	//// Specify the buffers we are going to render to.
-	//mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+	/*========specify the resources (data) that will be used to draw========*/
+	// Specify the back buffers and depth stencil buffer
+	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	//// Indicate a state transition on the resource usage.
-	//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
-	//	CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-	//	D3D12_RESOURCE_STATE_PRESENT));
+	//specify constant buffer heap
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-	//// Done recording commands.
-	//ThrowIfFailed(mCommandList->Close());
+	//specify root signature
+	//Todo: why have to set Root signature again when PSO already specify it???
+	//Answer: https://stackoverflow.com/questions/38535725/what-is-the-point-of-d3d12s-setgraphicsrootsignature
+	//It is some kind of CPU optimization
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	//// Add the command list to the queue for execution.
-	//ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-	//mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+	//specify vertex, index buffer
+	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
 
-	//// swap the back and front buffers
-	//ThrowIfFailed(mSwapChain->Present(0, 0));
-	//mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+	//primitive topology type, in this case is triangle list
+	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	//// Wait until frame commands are complete. This waiting is
-	//// inefficient and is done for simplicity. Later we will show how to
-	//// organize our rendering code so we do not have to wait per frame.
-	//FlushCommandQueue();
+	//specify root descriptor table
+	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+
+	/*=================draw the scene===============*/
+	//draw object using indices
+	mCommandList->DrawIndexedInstanced(
+		mBoxGeo->DrawArgs["box"].IndexCount,
+		1, 0, 0, 0);
+
+	// Indicate a state transition on the resource usage.
+	//bring back buffer to screen
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	// Done recording commands.
+	//close command list so command queue can execute it
+	ThrowIfFailed(mCommandList->Close());
+
+	// Add the command list to the queue for execution.
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+	/*==============================*/
+
+
+	/*================post-draw===============*/
+	// swap the back and front buffers
+	ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+	// Wait until frame commands are complete.  This waiting is inefficient and is
+	// done for simplicity.  Later we will show how to organize our rendering code
+	// so we do not have to wait per frame.
+	FlushCommandQueue();
+	/*================================*/
+}
+
+void BoxDemo::OnMouseDown(WPARAM btnState, int x, int y)
+{
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
+
+	//window specific code, capture mouse in this app window even if cursor goes outside of it
+	//this is for when we hold left mouse to rotate the box
+	SetCapture(mhMainWnd);
+}
+
+void BoxDemo::OnMouseUp(WPARAM btnState, int x, int y)
+{
+	//release mouse capture when mouse is released
+	ReleaseCapture();
+}
+
+void BoxDemo::OnMouseMove(WPARAM btnState, int x, int y)
+{
+	if ((btnState & MK_LBUTTON) != 0)
+	{
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+
+		// Update angles based on input to orbit camera around box.
+		mTheta += dx;
+		mPhi += dy;
+		/*mTheta += dy;
+		mPhi += dx;*/
+
+		// Restrict the angle mPhi.
+		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
+	}
+	else if ((btnState & MK_RBUTTON) != 0)
+	{
+		// Make each pixel correspond to 0.005 unit in the scene.
+		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
+		float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
+
+		// Update the camera radius based on input.
+		mRadius += dx - dy;
+
+		// Restrict the radius.
+		mRadius = MathHelper::Clamp(mRadius, 4.0f, 8.0f);
+	}
+
+	mLastMousePos.x = x;
+	mLastMousePos.y = y;
+	//std::wstring text = L"***Mouse Pos: ";
+	//text += std::to_wstring(mLastMousePos.x);
+	//text += L"---";
+	//text += std::to_wstring(mLastMousePos.y);
+	//text += L"\n";
+	//::OutputDebugStringW(text.c_str());
 }
 
 void BoxDemo::BuildResources4GeometryData()
@@ -116,14 +241,14 @@ void BoxDemo::BuildResources4GeometryData()
 	//vertex data
 	std::array<Vertex, 8> vertices =
 	{
-		Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) }),
+		Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
+		Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
 		Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) }),
+		Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
 		Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) }),
-		Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) })
+		Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
+		Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
+		Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) })
 	};
 
 	//indice data
@@ -282,7 +407,10 @@ void BoxDemo::CompileShaders()
 
 void BoxDemo::BuildPSO()
 {
+	//Not all rendering states are encapsulated in a PSO.Some states like the viewport and
+	//scissor rectangles are specified independently
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+
 	//quick way to initialize all struct members to zero
 	//because the struct D3D12_GRAPHICS_PIPELINE_STATE_DESC doesn't have default constructor
 	//don't know if this is lazy or good practice???

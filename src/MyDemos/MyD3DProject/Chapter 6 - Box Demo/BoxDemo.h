@@ -37,6 +37,9 @@ private:
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
+	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
+	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
+	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
 	//box geometry data and needed resources
 	void BuildResources4GeometryData();
@@ -76,5 +79,25 @@ private:
 
 	//Pipeline State Object
 	ComPtr<ID3D12PipelineState> mPSO = nullptr;
+
+	//world view projection matrices
+	XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
+	XMFLOAT4X4 mView = MathHelper::Identity4x4();
+	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+
+	//float mTheta = 1.5f * XM_PI; //3PI/2
+	//float mPhi = XM_PIDIV4;
+	//float mRadius = 6.0f;
+
+	float mTheta = -XM_PIDIV2;
+	//Todo why it doesn't show anything if mPhi is initialized 0.0f
+	//answer: https://stackoverflow.com/questions/7394600/y-orbit-tumbles-from-top-to-bottom-as-mousey-changes-in-processing-ide
+	//because in this code camera up vector is fixed at 0,1,0 so at the pole the view matrix is not correct
+	//that is why Phi is restricted in range 0 < Phi < 180
+	float mPhi = XM_PIDIV2;
+	float mRadius = 6.0f;
+
+	//last frame mouse position
+	POINT mLastMousePos;
 };
 
