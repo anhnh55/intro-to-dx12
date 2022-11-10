@@ -35,7 +35,8 @@ bool BoxDemo::Initialize()
 
 	// Wait until initialization is complete
 	//using Fence to synchronize between CPU and GPU
-	//this is a simple solution but CPU has to be idle while waiting for GPU
+	//this is a simple solution and not recommended for optimization because
+	//CPU has to be idle while waiting for GPU
 	FlushCommandQueue();
 
 	return true;
