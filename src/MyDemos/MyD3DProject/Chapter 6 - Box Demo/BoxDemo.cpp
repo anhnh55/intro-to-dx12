@@ -21,10 +21,10 @@ bool BoxDemo::Initialize()
 	// Reset the command list to prep for initialization commands.
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	BuildResources4ConstantBuffer();
 	BuildResources4GeometryData();
-	BuildRootSignature();
 	CompileShaders();
+	BuildResources4ConstantBuffer();
+	BuildRootSignature();
 	BuildPSO();
 
 	//in the build functions above we use some command list call so 
