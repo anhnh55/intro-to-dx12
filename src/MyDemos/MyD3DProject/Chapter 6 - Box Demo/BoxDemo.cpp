@@ -332,7 +332,7 @@ void BoxDemo::BuildResources4ConstantBuffer()
 	//then we need to create a resource that will contain constant buffer data of 1 ObjectConstants
 	mCBUploadHelper = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
-	/* ==then we need to describe that resourceand add that description to the heap==*/
+	/* ==then we need to describe that resource and add that description to the heap==*/
 	//UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mCBUploadHelper->Resource()->GetGPUVirtualAddress();
 	// Offset to the ith object constant buffer in the buffer, in this case is 0 because the buffer contains just 1 object
@@ -346,7 +346,7 @@ void BoxDemo::BuildResources4ConstantBuffer()
 	md3dDevice->CreateConstantBufferView(
 		&cbvDesc,
 		mCbvHeap->GetCPUDescriptorHandleForHeapStart());
-	/*==*/
+	/*======*/
 }
 
 void BoxDemo::BuildRootSignature()
@@ -414,7 +414,7 @@ void BoxDemo::BuildPSO()
 
 	//quick way to initialize all struct members to zero
 	//because the struct D3D12_GRAPHICS_PIPELINE_STATE_DESC doesn't have default constructor
-	//don't know if this is lazy or good practice???
+	//Todo don't know if this is lazy or good practice???
 	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 
 	//config input layout

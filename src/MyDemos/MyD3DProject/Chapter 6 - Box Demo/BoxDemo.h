@@ -41,7 +41,7 @@ private:
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
-	//box geometry data and needed resources
+	//initialize resources holding geometry data including data layout, vertex buffer, index buffer. 
 	void BuildResources4GeometryData();
 
 	//build resources needed for a constant buffer that hold 1 ObjectConstants
