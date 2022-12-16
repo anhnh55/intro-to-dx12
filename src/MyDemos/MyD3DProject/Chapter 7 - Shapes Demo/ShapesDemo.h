@@ -32,19 +32,19 @@ struct RenderItem
 	int NumFramesDirty = gNumFrameResources;
 
 	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
+	//Todo CH7: seems like this is unnecessary because DrawIndexedInstanced parameters are also saved below
 	UINT ObjCBIndex = -1;
 
+	// DrawIndexedInstanced parameters.
+	UINT IndexCount = 0;
+	UINT StartIndexLocation = 0;
+	int BaseVertexLocation = 0;
 	// Geometry associated with this render-item. Note that multiple
 	// render-items can share the same geometry.
 	MeshGeometry* Geo = nullptr;
 
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-	// DrawIndexedInstanced parameters.
-	UINT IndexCount = 0;
-	UINT StartIndexLocation = 0;
-	int BaseVertexLocation = 0;
 };
 
 class ShapesDemo : public D3DApp
@@ -58,10 +58,13 @@ public:
 private:
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
+	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems);
 	virtual void Draw(const GameTimer& gt)override;
 	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	void OnKeyboardInput(const GameTimer& gt);
+	void UpdateCamera(const GameTimer& gt);
 
 	//Build geometry data
 	void BuildShapeGeometry();
@@ -70,7 +73,7 @@ private:
 	void BuildInputLayout();
 
 	//build resources needed for a constant buffer that hold 1 ObjectConstants
-	void BuildResources4ConstantBuffer();
+	void BuildResources4ConstantBuffers();
 
 	//build root signature
 	void BuildRootSignature();
@@ -89,7 +92,8 @@ private:
 	//update frame render pass constant buffer 
 	void UpdateMainPassCB(const GameTimer& gt);
 
-	
+	//config to draw each object
+	void BuildRenderItems();
 private:
 	//constant buffer descriptor heap
 	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
@@ -144,5 +148,9 @@ private:
 	//index and pointer to track current FrameResource
 	int mCurrFrameResourceIndex = 0;
 	FrameResource* mCurrFrameResource = nullptr;
+
+	UINT mPassCbvOffset;
+	bool mIsWireframe = false;
+	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 };
 

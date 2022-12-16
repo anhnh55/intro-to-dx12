@@ -148,7 +148,7 @@ public:
 // buffers so that we can implement the technique described by Figure 6.3.
 struct SubmeshGeometry
 {
-	UINT IndexCount = 0;
+	UINT IndexCount = 0;//index and vertex array has same size so just need to cache index count
 	UINT StartIndexLocation = 0;
 	INT BaseVertexLocation = 0;
 

@@ -53,6 +53,8 @@ public:
         DirectX::XMFLOAT2 TexC;
 	};
 
+	//logical mesh data
+	//will be copied into buffers
 	struct MeshData
 	{
 		std::vector<Vertex> Vertices;
