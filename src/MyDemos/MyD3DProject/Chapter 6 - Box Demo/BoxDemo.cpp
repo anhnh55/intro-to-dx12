@@ -140,6 +140,7 @@ void BoxDemo::Draw(const GameTimer& gt)
 	mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	//specify root descriptor table
+	//0 mean slot b0
 	mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
 	/*=================draw the scene===============*/

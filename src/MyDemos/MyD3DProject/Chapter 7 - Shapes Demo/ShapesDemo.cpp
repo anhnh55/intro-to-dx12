@@ -119,11 +119,15 @@ void ShapesDemo::Draw(const GameTimer& gt)
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	//specify constant buffer heap
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
+	//specify root signature
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
+	//specify root descriptor table
+	//1 mean slot b1
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
@@ -166,6 +170,7 @@ void ShapesDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::
 	{
 		auto ri = ritems[i];
 
+		//specify vertex, index buffer of item ith
 		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
@@ -175,6 +180,7 @@ void ShapesDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::
 		auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
 
+		//0 mean slot b0
 		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
@@ -214,15 +220,15 @@ void ShapesDemo::OnMouseMove(WPARAM btnState, int x, int y)
 	}
 	else if ((btnState & MK_RBUTTON) != 0)
 	{
-		// Make each pixel correspond to 0.005 unit in the scene.
-		float dx = 0.005f * static_cast<float>(x - mLastMousePos.x);
-		float dy = 0.005f * static_cast<float>(y - mLastMousePos.y);
+		// Make each pixel correspond to 0.2 unit in the scene.
+		float dx = 0.05f * static_cast<float>(x - mLastMousePos.x);
+		float dy = 0.05f * static_cast<float>(y - mLastMousePos.y);
 
 		// Update the camera radius based on input.
 		mRadius += dx - dy;
 
 		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 4.0f, 8.0f);
+		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
 	}
 
 	mLastMousePos.x = x;
@@ -231,7 +237,14 @@ void ShapesDemo::OnMouseMove(WPARAM btnState, int x, int y)
 
 void ShapesDemo::OnKeyboardInput(const GameTimer& gt)
 {
-	if (GetAsyncKeyState('1') & 0x8000)
+	//https://learn.microsoft.com/en-us/windows/win32/learnwin32/keyboard-input
+	//0x8000 is to test if key is pressed
+	//if (GetAsyncKeyState('1') & 0x8000)
+	//	mIsWireframe = true;
+	//else
+	//	mIsWireframe = false;
+
+	if (GetKeyState('1') & 0x8000)
 		mIsWireframe = true;
 	else
 		mIsWireframe = false;
@@ -376,58 +389,51 @@ void ShapesDemo::BuildRootSignature()
 
 void ShapesDemo::CompileShaders()
 {
-	//in this demo we use run-time  compiling method
-	//another method is offline-compiling using FXC tool
-	//if offline-compiling is used, the compiled file has to be loaded using d3dUtil::LoadBinary
-	mvsByteCode = d3dUtil::CompileShader(L".\\Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L".\\Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_1");
 }
 
 void ShapesDemo::BuildPSO()
 {
-	//Not all rendering states are encapsulated in a PSO.Some states like the viewport and
-	//scissor rectangles are specified independently
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
-	//quick way to initialize all struct members to zero
-	//because the struct D3D12_GRAPHICS_PIPELINE_STATE_DESC doesn't have default constructor
-	//Todo don't know if this is lazy or good practice???
-	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-
-	//config input layout
-	psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
-	//config root signature
-	psoDesc.pRootSignature = mRootSignature.Get();
-
-	//config VS
-	psoDesc.VS =
+	//
+	// PSO for opaque objects.
+	//
+	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();
+	opaquePsoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(mvsByteCode->GetBufferPointer()),
-		mvsByteCode->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
 	};
-
-	//config FS
-	psoDesc.PS =
+	opaquePsoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(mpsByteCode->GetBufferPointer()),
-		mpsByteCode->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
 	};
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets = 1;
+	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-	//basically default settings
-	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	psoDesc.SampleMask = UINT_MAX;
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 1;
-	psoDesc.RTVFormats[0] = mBackBufferFormat;
-	psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-	psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-	psoDesc.DSVFormat = mDepthStencilFormat;
 
-	//create PSO
-	//PSO will be use when we draw object
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+	//
+	// PSO for opaque wireframe objects.
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
+	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
 void ShapesDemo::BuildFrameResources()
