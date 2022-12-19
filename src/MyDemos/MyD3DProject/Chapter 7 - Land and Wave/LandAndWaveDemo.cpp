@@ -1,22 +1,22 @@
-﻿#include "ShapesDemo.h"
+﻿#include "LandAndWaveDemo.h"
 #include "d3d12.h"
 //number of FrameResources instances
 //so CPU might be at most 3 frame ahead of GPU
 const int gNumFrameResources = 3;
 using namespace Microsoft::WRL;
 
-ShapesDemo::ShapesDemo(HINSTANCE hInstance)
+LandAndWaveDemo::LandAndWaveDemo(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
-	mMainWndCaption = L"Shapes Demo";
+	mMainWndCaption = L"Land and Wave Demo";
 }
 
-ShapesDemo::~ShapesDemo()
+LandAndWaveDemo::~LandAndWaveDemo()
 {
 
 }
 
-bool ShapesDemo::Initialize()
+bool LandAndWaveDemo::Initialize()
 {
 	if (!D3DApp::Initialize())
 		return false;
@@ -48,7 +48,7 @@ bool ShapesDemo::Initialize()
 	return true;
 }
 
-void ShapesDemo::OnResize()
+void LandAndWaveDemo::OnResize()
 {
 	//resize swapchain buffer and depth/stencil buffer
 	D3DApp::OnResize();
@@ -59,7 +59,7 @@ void ShapesDemo::OnResize()
 	XMStoreFloat4x4(&mProj, P);
 }
 
-void ShapesDemo::Update(const GameTimer& gt)
+void LandAndWaveDemo::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
@@ -86,7 +86,7 @@ void ShapesDemo::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
-void ShapesDemo::Draw(const GameTimer& gt)
+void LandAndWaveDemo::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
@@ -159,7 +159,7 @@ void ShapesDemo::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void ShapesDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+void LandAndWaveDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
@@ -187,7 +187,7 @@ void ShapesDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::
 	}
 }
 
-void ShapesDemo::OnMouseDown(WPARAM btnState, int x, int y)
+void LandAndWaveDemo::OnMouseDown(WPARAM btnState, int x, int y)
 {
 	mLastMousePos.x = x;
 	mLastMousePos.y = y;
@@ -197,13 +197,13 @@ void ShapesDemo::OnMouseDown(WPARAM btnState, int x, int y)
 	SetCapture(mhMainWnd);
 }
 
-void ShapesDemo::OnMouseUp(WPARAM btnState, int x, int y)
+void LandAndWaveDemo::OnMouseUp(WPARAM btnState, int x, int y)
 {
 	//release mouse capture when mouse is released
 	ReleaseCapture();
 }
 
-void ShapesDemo::OnMouseMove(WPARAM btnState, int x, int y)
+void LandAndWaveDemo::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	if ((btnState & MK_LBUTTON) != 0)
 	{
@@ -235,7 +235,7 @@ void ShapesDemo::OnMouseMove(WPARAM btnState, int x, int y)
 	mLastMousePos.y = y;
 }
 
-void ShapesDemo::OnKeyboardInput(const GameTimer& gt)
+void LandAndWaveDemo::OnKeyboardInput(const GameTimer& gt)
 {
 	//https://learn.microsoft.com/en-us/windows/win32/learnwin32/keyboard-input
 	//0x8000 is to test if key is pressed
@@ -250,7 +250,7 @@ void ShapesDemo::OnKeyboardInput(const GameTimer& gt)
 		mIsWireframe = false;
 }
 
-void ShapesDemo::UpdateCamera(const GameTimer& gt)
+void LandAndWaveDemo::UpdateCamera(const GameTimer& gt)
 {
 	// Convert Spherical to Cartesian coordinates.
 	mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
@@ -266,7 +266,7 @@ void ShapesDemo::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
-void ShapesDemo::BuildInputLayout()
+void LandAndWaveDemo::BuildInputLayout()
 {
 	//input layout later will be included in Pipeline State Object
 	mInputLayout =
@@ -276,7 +276,7 @@ void ShapesDemo::BuildInputLayout()
 	};
 }
 
-void ShapesDemo::BuildResources4ConstantBuffers()
+void LandAndWaveDemo::BuildResources4ConstantBuffers()
 {
 	//===================== build heap: each frame resource has n object constant buffer and 1 pass constant buffer
 	//there are gNumFrameResources 
@@ -350,7 +350,7 @@ void ShapesDemo::BuildResources4ConstantBuffers()
 	}
 }
 
-void ShapesDemo::BuildRootSignature()
+void LandAndWaveDemo::BuildRootSignature()
 {
 	//we have two constant buffers (object CB and pass CB)
 	CD3DX12_DESCRIPTOR_RANGE cbvTable0;	//b0
@@ -387,13 +387,13 @@ void ShapesDemo::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
-void ShapesDemo::CompileShaders()
+void LandAndWaveDemo::CompileShaders()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_1");
 }
 
-void ShapesDemo::BuildPSO()
+void LandAndWaveDemo::BuildPSO()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
@@ -436,7 +436,7 @@ void ShapesDemo::BuildPSO()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
-void ShapesDemo::BuildFrameResources()
+void LandAndWaveDemo::BuildFrameResources()
 {
 	for (int i = 0; i < gNumFrameResources; ++i)
 	{
@@ -445,7 +445,7 @@ void ShapesDemo::BuildFrameResources()
 	}
 }
 
-void ShapesDemo::UpdateObjectCBs(const GameTimer& gt)
+void LandAndWaveDemo::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for (auto& e : mAllRitems)
@@ -469,7 +469,7 @@ void ShapesDemo::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void ShapesDemo::UpdateMainPassCB(const GameTimer& gt)
+void LandAndWaveDemo::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -498,7 +498,7 @@ void ShapesDemo::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void ShapesDemo::BuildShapeGeometry()
+void LandAndWaveDemo::BuildShapeGeometry()
 {
 	//generate meshes data
 	GeometryGenerator geoGen;
@@ -633,7 +633,7 @@ void ShapesDemo::BuildShapeGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-void ShapesDemo::BuildRenderItems()
+void LandAndWaveDemo::BuildRenderItems()
 {
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
