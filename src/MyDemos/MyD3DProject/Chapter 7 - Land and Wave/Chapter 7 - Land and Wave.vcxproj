@@ -148,6 +148,7 @@
     <ClCompile Include="Chapter 7 - Land and Wave.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="LandAndWaveDemo.cpp" />
+    <ClCompile Include="Waves.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common\d3dApp.h" />
@@ -158,6 +159,7 @@
     <ClInclude Include="..\..\..\Common\MathHelper.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="LandAndWaveDemo.h" />
+    <ClInclude Include="Waves.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

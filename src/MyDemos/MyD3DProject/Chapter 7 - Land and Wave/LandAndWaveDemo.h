@@ -7,6 +7,7 @@
 #include <DirectXMath.h>
 
 #include "FrameResource.h"
+#include "Waves.h"
 
 using namespace DirectX;
 using namespace PackedVector;
@@ -47,6 +48,12 @@ struct RenderItem
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 };
 
+enum class RenderLayer : int
+{
+	Opaque = 0,
+	Count
+};
+
 class LandAndWaveDemo : public D3DApp
 {
 public:
@@ -63,17 +70,22 @@ private:
 	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
+	void UpdateWaves(const GameTimer& gt);
 
-	//Build geometry data
-	void BuildShapeGeometry();
+	//get height using a sin func
+	float GetHillsHeight(float x, float z);
+
+	//Build Geometry for land
+	void BuildLandGeometry();
+
+	//Build Geometry for waves
+	void BuildWavesGeometryBuffers();
 
 	//initialize vertex input layout
 	void BuildInputLayout();
-
-	//build resources needed for a constant buffer that hold 1 ObjectConstants
-	void BuildResources4ConstantBuffers();
 
 	//build root signature
 	void BuildRootSignature();
@@ -95,12 +107,6 @@ private:
 	//config to draw each object
 	void BuildRenderItems();
 private:
-	//constant buffer descriptor heap
-	ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
-
-	//constant buffer upload helper
-	std::unique_ptr<UploadBuffer<ObjectConstants>> mCBUploadHelper = nullptr;
-
 	//Geometry wrapper class for geometry data
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 
@@ -125,18 +131,10 @@ private:
 	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
 	////Camera related
-	//XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	//float mTheta = -XM_PIDIV2;
-	////Todo why it doesn't show anything if mPhi is initialized 0.0f
-	////answer: https://stackoverflow.com/questions/7394600/y-orbit-tumbles-from-top-to-bottom-as-mousey-changes-in-processing-ide
-	////because in this code camera up vector is fixed at 0,1,0 so at the pole the view matrix is not correct
-	////that is why Phi is restricted in range 0 < Phi < 180
-	//float mPhi = XM_PIDIV2;
-	//float mRadius = 6.0f;
 	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
 	float mTheta = 1.5f * XM_PI;
-	float mPhi = 0.2f * XM_PI;
-	float mRadius = 15.0f;
+	float mPhi = XM_PIDIV2 - 0.1f;
+	float mRadius = 50.0f;
 
 	//last frame mouse position
 	POINT mLastMousePos;
@@ -147,8 +145,10 @@ private:
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 	// Render items divided by PSO.
-	std::vector<RenderItem*> mOpaqueRitems;
-	std::vector<RenderItem*> mTransparentRitems;
+	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
+
+	//Wave item
+	RenderItem* mWavesRitem = nullptr;
 	//index and pointer to track current FrameResource
 	int mCurrFrameResourceIndex = 0;
 	FrameResource* mCurrFrameResource = nullptr;
@@ -157,5 +157,8 @@ private:
 	bool mIsWireframe = false;
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+	
+
+	std::unique_ptr<Waves> mWaves;
 };
 

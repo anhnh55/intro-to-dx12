@@ -39,6 +39,9 @@
     <ClCompile Include="Chapter 7 - Land and Wave.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Waves.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LandAndWaveDemo.h">
@@ -63,6 +66,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\Common\GeometryGenerator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Waves.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

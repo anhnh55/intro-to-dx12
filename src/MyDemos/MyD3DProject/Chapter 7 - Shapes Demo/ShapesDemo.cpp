@@ -126,7 +126,7 @@ void ShapesDemo::Draw(const GameTimer& gt)
 	//specify root signature
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	//specify root descriptor table
+	//specify root descriptor table: reference a contiguous range in a heap (constant buffer heap - mCbvHeap)
 	//1 mean slot b1
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
