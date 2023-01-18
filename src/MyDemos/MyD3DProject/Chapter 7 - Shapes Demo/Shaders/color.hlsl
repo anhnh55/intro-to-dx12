@@ -6,7 +6,24 @@
  
 cbuffer cbPerObject : register(b0)
 {
-	float4x4 gWorld; 
+	//float4x4 gWorld;
+    //16 number for world matrix (root constants approach)
+    float w0;
+    float w1;
+    float w2;
+    float w3;
+    float w4;
+    float w5;
+    float w6;
+    float w7;
+    float w8;
+    float w9;
+    float w10;
+    float w11;
+    float w12;
+    float w13;
+    float w14;
+    float w15;
 };
 
 cbuffer cbPass : register(b1)
@@ -44,6 +61,11 @@ VertexOut VS(VertexIn vin)
 	VertexOut vout;
 	
 	// Transform to homogeneous clip space.
+    float4x4 gWorld = float4x4(w0, w1, w2, w3,
+							   w4, w5, w6, w7,
+							   w8, w9, w10, w11,
+							   w12, w13, w14, w15);
+
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosH = mul(posW, gViewProj);
 	
