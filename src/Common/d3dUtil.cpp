@@ -2,9 +2,10 @@
 #include "d3dUtil.h"
 #include <comdef.h>
 #include <fstream>
+#include <codecvt>
 
 using Microsoft::WRL::ComPtr;
-
+using namespace std;
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
     ErrorCode(hr),
     FunctionName(functionName),
@@ -128,4 +129,15 @@ std::wstring DxException::ToString()const
     return FunctionName + L" failed in " + Filename + L"; line " + std::to_wstring(LineNumber) + L"; error: " + msg;
 }
 
+void d3dUtil::Log(const char* content)
+{
+    //setup converter
+    typedef std::codecvt_utf8<wchar_t> convert_type;
+    std::wstring_convert<convert_type, wchar_t> converter;
+
+    //use converter (.to_bytes: wstr->str, .from_bytes: str->wstr)
+	wstring wtmp = converter.from_bytes(content);
+    wtmp += L"\n";
+    OutputDebugString(wtmp.c_str());
+}
 
