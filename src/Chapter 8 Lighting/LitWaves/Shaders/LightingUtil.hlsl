@@ -20,7 +20,7 @@ struct Material
 {
     float4 DiffuseAlbedo;
     float3 FresnelR0;
-    float Shininess;
+    float Shininess; // = 1 - roughness
 };
 
 float CalcAttenuation(float d, float falloffStart, float falloffEnd)
@@ -31,22 +31,30 @@ float CalcAttenuation(float d, float falloffStart, float falloffEnd)
 
 // Schlick gives an approximation to Fresnel reflectance (see pg. 233 "Real-Time Rendering 3rd Ed.").
 // R0 = ( (n-1)/(n+1) )^2, where n is the index of refraction.
+// R(theta) = R0 + (1 - R0)(1 - cos(theta))^5
 float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 {
     float cosIncidentAngle = saturate(dot(normal, lightVec));
 
     float f0 = 1.0f - cosIncidentAngle;
+    
     float3 reflectPercent = R0 + (1.0f - R0)*(f0*f0*f0*f0*f0);
 
     return reflectPercent;
 }
 
+//BlinnPhong: Computes the amount of light reflected into the eye; it is the sum of diffuse reflectance and specularreflectance.
 float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, Material mat)
 {
+    // Derive m from the shininess, which is derived from the roughness
     const float m = mat.Shininess * 256.0f;
     float3 halfVec = normalize(toEye + lightVec);
 
+    //roughness factor approximate the amount of microfacet that have the normal = halfVec (book page 488)
+    //Todo: separate (max(L·n, 0)·BL) from this to make it looks clearer between BL and roughness factor?
     float roughnessFactor = (m + 8.0f)*pow(max(dot(halfVec, normal), 0.0f), m) / 8.0f;
+
+    //fresnel factor approximate the amount of specular light at an angle
     float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);
 
     float3 specAlbedo = fresnelFactor*roughnessFactor;
@@ -55,6 +63,8 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
     // doing LDR rendering.  So scale it down a bit.
     specAlbedo = specAlbedo / (specAlbedo + 1.0f);
 
+    //diffuse = lightstrength*mat's albedo
+    //spec = lightstrength*spec's albedo (which is calculated using roughness and fresnel factors as above)
     return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;
 }
 

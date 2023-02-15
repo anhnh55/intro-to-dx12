@@ -71,6 +71,7 @@ void ShapesDemo::Update(const GameTimer& gt)
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
 	//Todo CH7: how can CPU being ahead of GPU if it has to wait for GPU to finish current frame resource every update?
+	//note that mFence is GPU's current fence value
 	//answer: because when mCurrFrameResource->Fence = 0, GPU has not processed this frame so we can skip the wait and add draw commands to the frame resource (CPU being ahead of GPU)
 	//when mCurrFrameResource->Fence != 0 and GPU fence < frame fence, CPU has to wait GPU process current frame resource (CPU can only be ahead of GPU for a fixed number of frame resource)
 	//when mCurrFrameResource->Fence != 0 and GPU fence >= frame fence, GPU has already processed this frame so CPU can update draw commands for this frame resource (CPU being ahead of GPU)
@@ -181,6 +182,8 @@ void ShapesDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::
 		cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
 
 		//0 mean slot b0
+		//SetGraphicsRootDescriptorTable or similar functions tell the GPU to assign data for a slot
+		//(in this case b0) from an address (cbvHandle in this case)
 		cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
@@ -325,6 +328,8 @@ void ShapesDemo::BuildResources4ConstantBuffers()
 			cbvDesc.BufferLocation = cbAddress;
 			cbvDesc.SizeInBytes = objCBByteSize;
 
+			//each handle in mCbvHeap now contains (or points to) information about a buffer location and
+			//block size (cbvDesc)
 			md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
 		}
 	}
