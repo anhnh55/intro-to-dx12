@@ -453,11 +453,20 @@ void LightingDemo::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.DeltaTime = gt.DeltaTime();
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 
+	//lighting parameters
 	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
 
 	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
 
-	mMainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+	XMFLOAT3 baseLightStrength = { 1.0f, 0.01f, 0.01f };
+	XMFLOAT3 oscillateLight = baseLightStrength;
+	float oscillateSpeed = 3.0f;
+	float oscillateFactor = sinf(gt.TotalTime()*oscillateSpeed);
+	
+	oscillateLight.x *= oscillateFactor;
+
+
+	mMainPassCB.Lights[0].Strength = oscillateLight;
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -570,7 +579,8 @@ void LightingDemo::BuildMaterials()
 	grass->MatCBIndex = 0;
 	grass->DiffuseAlbedo = XMFLOAT4(0.2f, 0.6f, 0.2f, 1.0f);
 	grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
-	grass->Roughness = 0.125f;
+	//grass->Roughness = 0.125f;
+	grass->Roughness = 0.8f;
 
 	// This is not a good water material definition, but we do not have all the rendering
 	// tools we need (transparency, environment reflection), so we fake it for now.
@@ -579,7 +589,7 @@ void LightingDemo::BuildMaterials()
 	water->MatCBIndex = 1;
 	water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	water->Roughness = 0.0f;
+	water->Roughness = 0.1f;
 
 	mMaterials["grass"] = std::move(grass);
 	mMaterials["water"] = std::move(water);
