@@ -29,6 +29,7 @@ bool SkullDemo::Initialize()
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	BuildShapeGeometry();
+	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
 	BuildInputLayout();
@@ -88,6 +89,7 @@ void SkullDemo::Update(const GameTimer& gt)
 
 	UpdateObjectCBs(gt);
 	UpdateMainPassCB(gt);
+	UpdateMaterialCBs(gt);
 }
 
 void SkullDemo::Draw(const GameTimer& gt)
@@ -131,11 +133,11 @@ void SkullDemo::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 	//specify root descriptor table: reference a contiguous range in a heap (constant buffer heap - mCbvHeap)
-	//1 mean slot b1
+	//2 mean slot b2
 	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
 	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+	mCommandList->SetGraphicsRootDescriptorTable(2, passCbvHandle);
 
 	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
@@ -166,8 +168,10 @@ void SkullDemo::Draw(const GameTimer& gt)
 void SkullDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+	auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i)
@@ -182,6 +186,11 @@ void SkullDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		//set root constants slot b0 for world matrix
 		XMMATRIX world = XMLoadFloat4x4(&ritems[i]->World);
 		cmdList->SetGraphicsRoot32BitConstants(0, 16, &world, 0);
+
+		//set mat constants slot b1
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
+		cmdList->SetGraphicsRootConstantBufferView(1, matCBAddress);
+		
 
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
@@ -237,17 +246,17 @@ void SkullDemo::OnMouseMove(WPARAM btnState, int x, int y)
 
 void SkullDemo::OnKeyboardInput(const GameTimer& gt)
 {
-	//https://learn.microsoft.com/en-us/windows/win32/learnwin32/keyboard-input
-	//0x8000 is to test if key is pressed
-	//if (GetAsyncKeyState('1') & 0x8000)
-	//	mIsWireframe = true;
-	//else
-	//	mIsWireframe = false;
-
-	if (GetKeyState('1') & 0x8000)
-		mIsWireframe = false;
-	else
-		mIsWireframe = true;
+	const float dt = gt.DeltaTime();
+	if (GetAsyncKeyState(VK_LEFT) & 0x8000)
+		mSunTheta -= 1.0f * dt;
+	if (GetAsyncKeyState(VK_RIGHT) & 0x8000)
+		mSunTheta += 1.0f * dt;
+	if (GetAsyncKeyState(VK_UP) & 0x8000)
+		mSunPhi -= 1.0f * dt;
+	if (GetAsyncKeyState(VK_DOWN) & 0x8000)
+		mSunPhi += 1.0f * dt;
+	mSunPhi = MathHelper::Clamp(mSunPhi, 0.1f,
+		XM_PIDIV2);
 }
 
 void SkullDemo::UpdateCamera(const GameTimer& gt)
@@ -272,7 +281,7 @@ void SkullDemo::BuildInputLayout()
 	mInputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 }
 
@@ -321,21 +330,25 @@ void SkullDemo::BuildResources4ConstantBuffers()
 
 void SkullDemo::BuildRootSignature()
 {
+	// Root parameter can be a descriptor table, root descriptor or root constants.
+	CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+
 	//we have two constant buffers (object CB and pass CB)
 	//object cb will be init as root constants
-	CD3DX12_DESCRIPTOR_RANGE cbvTable1; //b1
-	cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
-
-	// Root parameter can be a descriptor table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+	CD3DX12_DESCRIPTOR_RANGE cbvTable2; //b2
+	cbvTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 2);
 	
 	//16 32bit root constant values for world matrix
 	slotRootParameter[0].InitAsConstants(16, 0);
+
+	//for material slot b1
+	slotRootParameter[1].InitAsConstantBufferView(1);
+
 	// for pass CB
-	slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
+	slotRootParameter[2].InitAsDescriptorTable(1, &cbvTable2);
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr,
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
@@ -359,8 +372,8 @@ void SkullDemo::BuildRootSignature()
 
 void SkullDemo::CompileShaders()
 {
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\default.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\default.hlsl", nullptr, "PS", "ps_5_1");
 }
 
 void SkullDemo::BuildPSO()
@@ -397,12 +410,8 @@ void SkullDemo::BuildPSO()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 
-	//
-	// PSO for opaque wireframe objects.
-	//
-
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
-	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 }
 
@@ -411,8 +420,48 @@ void SkullDemo::BuildFrameResources()
 	for (int i = 0; i < gNumFrameResources; ++i)
 	{
 		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-			1, (UINT)mAllRitems.size()));
+			1, (UINT)mAllRitems.size(),(UINT) mMaterials.size()));
 	}
+}
+
+void SkullDemo::BuildMaterials()
+{
+	auto gold = std::make_unique<Material>();
+	gold->Name = "gold";
+	gold->MatCBIndex = 0;
+	gold->DiffuseAlbedo = XMFLOAT4(1.0f, 0.8f, 0.6f, 1.0f);
+	gold->FresnelR0 = XMFLOAT3(1.0f, 0.71f, 0.29f);
+	//grass->Roughness = 0.125f;
+	gold->Roughness = 0.3f;
+
+	// This is not a good water material definition, but we do not have all the rendering
+	// tools we need (transparency, environment reflection), so we fake it for now.
+	auto water = std::make_unique<Material>();
+	water->Name = "water";
+	water->MatCBIndex = 1;
+	water->DiffuseAlbedo = XMFLOAT4(0.0f, 0.2f, 0.6f, 1.0f);
+	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	water->Roughness = 0.1f;
+
+	auto rock = std::make_unique<Material>();
+	rock->Name = "rock";
+	rock->MatCBIndex = 2;
+	rock->DiffuseAlbedo = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+	rock->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	//grass->Roughness = 0.125f;
+	rock->Roughness = 0.8f;
+
+	auto bone = std::make_unique<Material>();
+	bone->Name = "bone";
+	bone->MatCBIndex = 3;
+	bone->DiffuseAlbedo = XMFLOAT4(0.98f, 0.88f, 0.8f, 1.0f);
+	bone->FresnelR0 = XMFLOAT3(0.3f, 0.3f, 0.3f);
+	bone->Roughness = 0.9f;
+
+	mMaterials["gold"] = std::move(gold);
+	mMaterials["water"] = std::move(water);
+	mMaterials["rock"] = std::move(rock);
+	mMaterials["bone"] = std::move(bone);
 }
 
 void SkullDemo::UpdateObjectCBs(const GameTimer& gt)
@@ -464,9 +513,60 @@ void SkullDemo::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.1f, 0.1f, 0.1f, 1.0f };
+
+	//lighting parameters
+	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
+	XMVECTOR lightDir2 = -MathHelper::SphericalToCartesian(1.0f, mSunTheta2, mSunPhi2);
+	XMVECTOR lightDir3 = -MathHelper::SphericalToCartesian(1.0f, mSunTheta3, mSunPhi3);
+
+	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
+	XMStoreFloat3(&mMainPassCB.Lights[1].Direction, lightDir2);
+	XMStoreFloat3(&mMainPassCB.Lights[2].Direction, lightDir3);
+
+	XMFLOAT3 baseLightStrength = { 1.0f, 0.5f, 0.5f };
+	XMFLOAT3 baseLightStrength2 = { 0.5f, 1.0f, 0.5f };
+	XMFLOAT3 baseLightStrength3 = { 0.5f, 0.5f, 1.0f };
+	/*XMFLOAT3 oscillateLight = baseLightStrength;
+	float oscillateSpeed = 3.0f;
+	float oscillateFactor = sinf(gt.TotalTime() * oscillateSpeed);
+
+	oscillateLight.x *= oscillateFactor;*/
+
+
+	//mMainPassCB.Lights[0].Strength = baseLightStrength;
+	//mMainPassCB.Lights[1].Strength = baseLightStrength2;
+	mMainPassCB.Lights[0].Strength = baseLightStrength;
+	mMainPassCB.Lights[1].Strength = baseLightStrength2;
+	mMainPassCB.Lights[2].Strength = baseLightStrength3;
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
+}
+
+void SkullDemo::UpdateMaterialCBs(const GameTimer& gt)
+{
+	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+	for (auto& e : mMaterials)
+	{
+		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+		// data changes, it needs to be updated for each FrameResource.
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty > 0)
+		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
+			MaterialConstants matConstants;
+			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+			matConstants.FresnelR0 = mat->FresnelR0;
+			matConstants.Roughness = mat->Roughness;
+
+			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+
+			// Next FrameResource need to be updated too.
+			mat->NumFramesDirty--;
+		}
+	}
 }
 
 void SkullDemo::BuildShapeGeometry()
@@ -593,30 +693,30 @@ void SkullDemo::BuildShapeGeometry()
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = box.Vertices[i].Position;
-		vertices[k].Color = XMFLOAT4(DirectX::Colors::DarkGreen);
+		vertices[k].Normal = box.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = grid.Vertices[i].Position;
-		vertices[k].Color = XMFLOAT4(DirectX::Colors::ForestGreen);
+		vertices[k].Normal = grid.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = sphere.Vertices[i].Position;
-		vertices[k].Color = XMFLOAT4(DirectX::Colors::Crimson);
+		vertices[k].Normal = sphere.Vertices[i].Normal;
 	}
 
 	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = cylinder.Vertices[i].Position;
-		vertices[k].Color = XMFLOAT4(DirectX::Colors::SteelBlue);
+		vertices[k].Normal = cylinder.Vertices[i].Normal;
 	}
 	for (size_t i = 0; i < skullMeshData.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = skullMeshData.Vertices[i].Position;
-		vertices[k].Color = XMFLOAT4(DirectX::Colors::DarkGray);
+		vertices[k].Normal = skullMeshData.Vertices[i].Normal;
 	}
 	//index data
 	std::vector<std::uint16_t> indices;
@@ -673,6 +773,7 @@ void SkullDemo::BuildRenderItems()
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
 	boxRitem->ObjCBIndex = 0;
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
+	boxRitem->Mat = mMaterials["water"].get();
 	boxRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
@@ -683,6 +784,7 @@ void SkullDemo::BuildRenderItems()
 	gridRitem->World = MathHelper::Identity4x4();
 	gridRitem->ObjCBIndex = 1;
 	gridRitem->Geo = mGeometries["shapeGeo"].get();
+	gridRitem->Mat = mMaterials["water"].get();
 	gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
 	gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
@@ -693,6 +795,7 @@ void SkullDemo::BuildRenderItems()
 	XMStoreFloat4x4(&skullRitem->World, XMMatrixTranslation(0.0f, 1.5f, 0.0f));;
 	skullRitem->ObjCBIndex = 2;
 	skullRitem->Geo = mGeometries["shapeGeo"].get();
+	skullRitem->Mat = mMaterials["bone"].get();
 	skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
 	skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
@@ -716,6 +819,7 @@ void SkullDemo::BuildRenderItems()
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
 		leftCylRitem->ObjCBIndex = objCBIndex++;
 		leftCylRitem->Geo = mGeometries["shapeGeo"].get();
+		leftCylRitem->Mat = mMaterials["rock"].get();
 		leftCylRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
 		leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
@@ -724,6 +828,7 @@ void SkullDemo::BuildRenderItems()
 		XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
 		rightCylRitem->ObjCBIndex = objCBIndex++;
 		rightCylRitem->Geo = mGeometries["shapeGeo"].get();
+		rightCylRitem->Mat = mMaterials["rock"].get();
 		rightCylRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
 		rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
@@ -732,6 +837,7 @@ void SkullDemo::BuildRenderItems()
 		XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
 		leftSphereRitem->ObjCBIndex = objCBIndex++;
 		leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
+		leftSphereRitem->Mat = mMaterials["gold"].get();
 		leftSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
@@ -740,6 +846,7 @@ void SkullDemo::BuildRenderItems()
 		XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
 		rightSphereRitem->ObjCBIndex = objCBIndex++;
 		rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
+		rightSphereRitem->Mat = mMaterials["gold"].get();
 		rightSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
 		rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;

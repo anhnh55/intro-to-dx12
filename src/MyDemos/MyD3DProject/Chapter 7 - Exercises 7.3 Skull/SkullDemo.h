@@ -43,6 +43,10 @@ struct RenderItem
 	// render-items can share the same geometry.
 	MeshGeometry* Geo = nullptr;
 
+	// Material associated with this render-item.
+	// render-items can share the same material.
+	Material* Mat = nullptr;
+
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 };
@@ -87,10 +91,15 @@ private:
 	//Frameresource to optimize CPU and GPU sync
 	void BuildFrameResources();
 
+	//build Materials
+	void BuildMaterials();
+
 	//update object constant buffer 
 	void UpdateObjectCBs(const GameTimer& gt);
 	//update frame render pass constant buffer 
 	void UpdateMainPassCB(const GameTimer& gt);
+	//update material cb
+	void UpdateMaterialCBs(const GameTimer& gt);
 
 	//config to draw each object
 	void BuildRenderItems();
@@ -103,6 +112,8 @@ private:
 
 	//Geometry wrapper class for geometry data
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+	//Materials
+	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
 	//root signature 
 	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -131,12 +142,25 @@ private:
 	////answer: https://stackoverflow.com/questions/7394600/y-orbit-tumbles-from-top-to-bottom-as-mousey-changes-in-processing-ide
 	////because in this code camera up vector is fixed at 0,1,0 so at the pole the view matrix is not correct
 	////that is why Phi is restricted in range 0 < Phi < 180
-	//float mPhi = XM_PIDIV2;
-	//float mRadius = 6.0f;
 	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
 	float mTheta = 1.5f * XM_PI;
-	float mPhi = 0.2f * XM_PI;
-	float mRadius = 15.0f;
+	float mPhi = XM_PIDIV2 - 0.1f;
+	float mRadius = 50.0f;
+
+	//in this demo, we use a directional light that will move around the unit sphere
+	/*float mSunTheta = 0.1f;
+	float mSunPhi = XM_PIDIV2;*/
+	//in this demo, we use a directional light that will move around the unit sphere
+	float mSunTheta = 0.0f;
+	float mSunPhi = XM_PIDIV4;
+
+	//second dir light
+	float mSunTheta2 = 0.0f;
+	float mSunPhi2 = -XM_PIDIV4;
+
+	//third dir light
+	float mSunTheta3 = XM_PIDIV2;
+	float mSunPhi3 = XM_PIDIV4;
 
 	//last frame mouse position
 	POINT mLastMousePos;
@@ -157,5 +181,6 @@ private:
 	bool mIsWireframe = false;
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+
 };
 
