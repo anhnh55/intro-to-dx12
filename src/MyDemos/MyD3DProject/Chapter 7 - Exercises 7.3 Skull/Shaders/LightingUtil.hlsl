@@ -74,7 +74,7 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEye)
 {
     // The light vector aims opposite the direction the light rays travel.
-    float3 lightVec = -L.Direction;
+    float3 lightVec = normalize(-L.Direction);
 
     // Scale light down by Lambert's cosine law.
     float ndotl = max(dot(lightVec, normal), 0.0f);
@@ -119,7 +119,7 @@ float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3
 {
     // The vector from the surface to the light.
     float3 lightVec = L.Position - pos;
-
+    float3 spotDir = normalize(L.Direction);
     // The distance from surface to light.
     float d = length(lightVec);
 
@@ -139,7 +139,7 @@ float3 ComputeSpotLight(Light L, Material mat, float3 pos, float3 normal, float3
     lightStrength *= att;
 
     // Scale by spotlight
-    float spotFactor = pow(max(dot(-lightVec, L.Direction), 0.0f), L.SpotPower);
+    float spotFactor = pow(max(dot(-lightVec, spotDir), 0.0f), L.SpotPower);
     lightStrength *= spotFactor;
 
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
