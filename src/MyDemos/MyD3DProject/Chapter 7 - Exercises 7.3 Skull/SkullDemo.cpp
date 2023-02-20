@@ -489,6 +489,22 @@ void SkullDemo::UpdateObjectCBs(const GameTimer& gt)
 	//}
 }
 
+XMFLOAT3 operator*(const XMFLOAT3& a, const XMFLOAT3& b) {
+	XMFLOAT3 ans;
+	ans.x = a.x * b.x;
+	ans.y = a.y * b.y;
+	ans.z = a.z * b.z;
+	return ans;
+}
+
+XMFLOAT3 operator-(const XMFLOAT3& a, const XMFLOAT3& b) {
+	XMFLOAT3 ans;
+	ans.x = a.x - b.x;
+	ans.y = a.y - b.y;
+	ans.z = a.z - b.z;
+	return ans;
+}
+
 void SkullDemo::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
@@ -524,21 +540,36 @@ void SkullDemo::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat3(&mMainPassCB.Lights[1].Direction, lightDir2);
 	XMStoreFloat3(&mMainPassCB.Lights[2].Direction, lightDir3);
 
+	XMFLOAT3 zeroLightStrength = { 0.0f, 0.0f, 0.0f };
 	XMFLOAT3 baseLightStrength = { 1.0f, 0.5f, 0.5f };
 	XMFLOAT3 baseLightStrength2 = { 0.5f, 1.0f, 0.5f };
 	XMFLOAT3 baseLightStrength3 = { 0.5f, 0.5f, 1.0f };
+	XMFLOAT3 pointLightStrenth = { 1.0f, 1.0f, 1.0f };
+	XMFLOAT3 spotLightStrenth = { 1.0f, 1.0f, 1.0f };
+	float spotPower = 4.0f;
 	/*XMFLOAT3 oscillateLight = baseLightStrength;
 	float oscillateSpeed = 3.0f;
 	float oscillateFactor = sinf(gt.TotalTime() * oscillateSpeed);
 
 	oscillateLight.x *= oscillateFactor;*/
 
-
 	//mMainPassCB.Lights[0].Strength = baseLightStrength;
 	//mMainPassCB.Lights[1].Strength = baseLightStrength2;
-	mMainPassCB.Lights[0].Strength = baseLightStrength;
-	mMainPassCB.Lights[1].Strength = baseLightStrength2;
-	mMainPassCB.Lights[2].Strength = baseLightStrength3;
+	//mMainPassCB.Lights[2].Strength = baseLightStrength3;
+
+	mMainPassCB.Lights[0].Strength = zeroLightStrength;
+	mMainPassCB.Lights[1].Strength = zeroLightStrength;
+	mMainPassCB.Lights[2].Strength = zeroLightStrength;
+
+	for(int i = 0; i < sphereWorldPos.size(); i++ )
+	{
+		mMainPassCB.Lights[i + 3].Strength = spotLightStrenth;
+		mMainPassCB.Lights[i + 3].Position = sphereWorldPos[i];
+		mMainPassCB.Lights[i + 3].Position.y += 5.0f;
+		mMainPassCB.Lights[i + 3].Direction =  sphereWorldPos[i] - mMainPassCB.Lights[i + 3].Position;
+		mMainPassCB.Lights[i + 3].SpotPower = spotPower;
+		mMainPassCB.Lights[i + 3].FalloffEnd = 100.0f;
+	}
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -815,6 +846,9 @@ void SkullDemo::BuildRenderItems()
 
 		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
 		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
+
+		sphereWorldPos.push_back(XMFLOAT3(-5.0f, 3.5f, -10.0f + i * 5.0f));
+		sphereWorldPos.push_back(XMFLOAT3(+5.0f, 3.5f, -10.0f + i * 5.0f));
 
 		XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
 		leftCylRitem->ObjCBIndex = objCBIndex++;

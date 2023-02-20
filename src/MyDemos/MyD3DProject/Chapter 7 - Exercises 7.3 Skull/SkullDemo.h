@@ -5,7 +5,7 @@
 #include "../../../Common/GeometryGenerator.h"
 #include <DirectXPackedVector.h>
 #include <DirectXMath.h>
-
+#include <vector>
 #include "FrameResource.h"
 
 using namespace DirectX;
@@ -152,15 +152,15 @@ private:
 	float mSunPhi = XM_PIDIV2;*/
 	//in this demo, we use a directional light that will move around the unit sphere
 	float mSunTheta = 0.0f;
-	float mSunPhi = XM_PIDIV4;
+	float mSunPhi = XM_PIDIV2;
 
 	//second dir light
 	float mSunTheta2 = 0.0f;
-	float mSunPhi2 = -XM_PIDIV4;
+	float mSunPhi2 = -XM_PIDIV2;
 
 	//third dir light
 	float mSunTheta3 = XM_PIDIV2;
-	float mSunPhi3 = XM_PIDIV4;
+	float mSunPhi3 = XM_PIDIV2;
 
 	//last frame mouse position
 	POINT mLastMousePos;
@@ -181,6 +181,8 @@ private:
 	bool mIsWireframe = false;
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+	//save sphere world pos here to set up light sources above them
+	std::vector<XMFLOAT3> sphereWorldPos;
 
 };
 
