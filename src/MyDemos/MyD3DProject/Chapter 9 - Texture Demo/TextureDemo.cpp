@@ -32,8 +32,10 @@ bool TextureDemo::Initialize()
 	BuildLandGeometry();
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);//build wave data
 	BuildWavesGeometryBuffers();
+	BuildBoxGeometry();
 	BuildMaterials();
 	BuildRenderItems();
+
 	BuildFrameResources();
 	BuildInputLayout();
 	CompileShaders();
@@ -661,6 +663,56 @@ void TextureDemo::BuildLandGeometry()
 	mGeometries["landGeo"] = std::move(geo);
 }
 
+void TextureDemo::BuildBoxGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
+
+	std::vector<Vertex> vertices(box.Vertices.size());
+	for (size_t i = 0; i < box.Vertices.size(); ++i)
+	{
+		auto& p = box.Vertices[i].Position;
+		vertices[i].Pos = p;
+		vertices[i].Normal = box.Vertices[i].Normal;
+		vertices[i].TexC = box.Vertices[i].TexC;
+	}
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+	std::vector<std::uint16_t> indices = box.GetIndices16();
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "boxGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["box"] = submesh;
+
+	mGeometries["boxGeo"] = std::move(geo);
+}
+
+
 void TextureDemo::BuildMaterials()
 {
 	auto grass = std::make_unique<Material>();
@@ -781,8 +833,22 @@ void TextureDemo::BuildRenderItems()
 
 	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 
+	auto crateRitem = std::make_unique<RenderItem>();
+	crateRitem->World = MathHelper::Identity4x4();
+	crateRitem->ObjCBIndex = 2;
+	crateRitem->Mat = mMaterials["wirefence"].get();
+	crateRitem->Geo = mGeometries["boxGeo"].get();
+	XMStoreFloat4x4(&crateRitem->World, XMMatrixTranslation(0.0f, 10.0f, 0.0f)*XMMatrixScaling(2.0f,2.0f,2.0f));//to tile the texture
+	crateRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	crateRitem->IndexCount = crateRitem->Geo->DrawArgs["box"].IndexCount;
+	crateRitem->StartIndexLocation = crateRitem->Geo->DrawArgs["box"].StartIndexLocation;
+	crateRitem->BaseVertexLocation = crateRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(crateRitem.get());
+
 	mAllRitems.push_back(std::move(wavesRitem));
 	mAllRitems.push_back(std::move(gridRitem));
+	mAllRitems.push_back(std::move(crateRitem));
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> TextureDemo::GetStaticSamplers()

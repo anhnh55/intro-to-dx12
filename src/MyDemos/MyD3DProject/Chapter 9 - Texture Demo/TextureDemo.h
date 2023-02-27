@@ -89,6 +89,9 @@ private:
 	//Build Geometry for land
 	void BuildLandGeometry();
 
+	//Geometry for a crate
+	void BuildBoxGeometry();
+
 	//Build Material for hill and wave
 	void BuildMaterials();
 
