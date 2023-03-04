@@ -245,7 +245,7 @@ void TextureDemo::OnMouseMove(WPARAM btnState, int x, int y)
 		mRadius += dx - dy;
 
 		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+		//mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
 	}
 
 	mLastMousePos.x = x;
@@ -557,7 +557,7 @@ void TextureDemo::LoadTextures()
 
 	auto fenceTex = std::make_unique<Texture>();
 	fenceTex->Name = "fenceTex";
-	fenceTex->Filename = L"../../../Textures/WoodCrate01.dds";
+	fenceTex->Filename = L"../../../Textures/WoodCrate01 - Copy.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), fenceTex->Filename.c_str(),
 		fenceTex->Resource, fenceTex->UploadHeap));
