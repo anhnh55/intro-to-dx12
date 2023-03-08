@@ -88,7 +88,7 @@ protected:
     bool      m4xMsaaState = false;    // 4X MSAA enabled
     UINT      m4xMsaaQuality = 0;      // quality level of 4X MSAA
 
-	// Used to keep track of the ìdelta-timeî and game time (ß4.4).
+	// Used to keep track of the ìdelta-timeÅEand game time (ß4.4).
 	GameTimer mTimer;
 	
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
