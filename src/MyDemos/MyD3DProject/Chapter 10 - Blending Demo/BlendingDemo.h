@@ -156,6 +156,7 @@ private:
 	//Pipeline State Object
 	ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
+	PassConstants mMainPassCB;
 	//world view projection matrices
 	XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
 	XMFLOAT4X4 mView = MathHelper::Identity4x4();
