@@ -37,7 +37,7 @@ cbuffer cbPerObject : register(b0)
 	float4x4 gTexTransform;
 };
 
-// Constant data that varies per pass.
+// Constant data that varies per material.
 cbuffer cbPass : register(b1)
 {
     float4x4 gView;
@@ -56,12 +56,9 @@ cbuffer cbPass : register(b1)
     float gDeltaTime;
     float4 gAmbientLight;
 
-	// Allow application to change fog parameters once per frame.
-	// For example, we may only use fog for certain times of day.
 	float4 gFogColor;
 	float gFogStart;
 	float gFogRange;
-    //constant buffer memory is packed in 4D vectors so some time we have to pad to pass data correctly
 	float2 cbPerObjectPad2;
 
     // Indices [0, NUM_DIR_LIGHTS) are directional lights;
@@ -118,7 +115,7 @@ VertexOut VS(VertexIn vin)
 float4 PS(VertexOut pin) : SV_Target
 {
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-	//return diffuseAlbedo.aaaa;
+	
 #ifdef ALPHA_TEST
 	// Discard pixel if texture alpha < 0.1.  We do this test as soon 
 	// as possible in the shader so that we can potentially exit the
@@ -152,6 +149,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     // Common convention to take alpha from diffuse albedo.
     litColor.a = diffuseAlbedo.a;
+
     return litColor;
 }
 

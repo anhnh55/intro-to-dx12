@@ -84,6 +84,8 @@ private:
 	void UpdateWaves(const GameTimer& gt);
 
 	void LoadTextures();
+	//heap for texture descriptors
+	void BuildDescriptorHeaps();
 
 	//load skull data from file
 	void BuildSkullGeometry();
@@ -113,6 +115,9 @@ private:
 	void UpdateObjectCBs(const GameTimer& gt);
 	//update frame render pass constant buffer 
 	void UpdateMainPassCB(const GameTimer& gt);
+	//pass cb for reflection
+	void UpdateReflectedPassCB(const GameTimer& gt);
+
 	//update material cb
 	void UpdateMaterialCBs(const GameTimer& gt);
 
@@ -154,6 +159,7 @@ private:
 	XMFLOAT3 mSkullTranslation = { 0.0f, 1.0f, -5.0f };
 
 	PassConstants mMainPassCB;
+	PassConstants mReflectedPassCB;
 	//world view projection matrices
 	XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
 	XMFLOAT4X4 mView = MathHelper::Identity4x4();

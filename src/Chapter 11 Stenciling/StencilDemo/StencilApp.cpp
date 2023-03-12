@@ -954,7 +954,7 @@ void StencilApp::BuildPSOs()
 	//
 
 	CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
-	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;
+	mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0;//disable color writes to the back buffer
 
 	D3D12_DEPTH_STENCIL_DESC mirrorDSS;
 	mirrorDSS.DepthEnable = true;
