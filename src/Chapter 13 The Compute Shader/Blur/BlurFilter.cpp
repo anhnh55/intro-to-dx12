@@ -26,7 +26,7 @@ void BlurFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	                              CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor,
 	                              UINT descriptorSize)
 {
-	// Save references to the descriptors. 
+	//save descriptor handle references
 	mBlur0CpuSrv = hCpuDescriptor;
 	mBlur0CpuUav = hCpuDescriptor.Offset(1, descriptorSize);
 	mBlur1CpuSrv = hCpuDescriptor.Offset(1, descriptorSize);
@@ -36,7 +36,7 @@ void BlurFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	mBlur0GpuUav = hGpuDescriptor.Offset(1, descriptorSize);
 	mBlur1GpuSrv = hGpuDescriptor.Offset(1, descriptorSize);
 	mBlur1GpuUav = hGpuDescriptor.Offset(1, descriptorSize);
-
+	//bind handles to corresponding resources
 	BuildDescriptors();
 }
 
@@ -46,9 +46,9 @@ void BlurFilter::OnResize(UINT newWidth, UINT newHeight)
 	{
 		mWidth = newWidth;
 		mHeight = newHeight;
-
+		//we blur the scene so the compute shader work on texture with same resolution.
+		//so when scene/window is resized we need to build resources again
 		BuildResources();
-
 		// New resource, so we need new descriptors to that resource.
 		BuildDescriptors();
 	}
