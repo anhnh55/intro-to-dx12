@@ -69,19 +69,22 @@ void BlurFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 	cmdList->SetComputeRoot32BitConstants(0, 1, &blurRadius, 0);
 	cmdList->SetComputeRoot32BitConstants(0, (UINT)weights.size(), weights.data(), 1);
 
-	//change back buffer to copy source
+	//change input back buffer to copy source
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(input,
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
 
+	//change mBlurMap0 to copy destination
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
 
 	// Copy the input (back-buffer in this example) to BlurMap0.
 	cmdList->CopyResource(mBlurMap0.Get(), input);
-	
+
+	//change mBlurMap0 to read so compute shader can read data from it
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap0.Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 
+	//change mBlurMap1 to unordered access so compute shader can write hor blur result to it
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mBlurMap1.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
  

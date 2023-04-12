@@ -6,6 +6,7 @@
 #include <DirectXPackedVector.h>
 #include <DirectXMath.h>
 
+#include "BlurFilter.h"
 #include "FrameResource.h"
 #include "Waves.h"
 
@@ -144,7 +145,7 @@ private:
 	ComPtr<ID3D12RootSignature> mPostProcessRootSignature = nullptr;
 
 	//Heap for SRV
-	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+	ComPtr<ID3D12DescriptorHeap> mCbvSrvUavDescriptorHeap = nullptr;
 	UINT mCbvSrvDescriptorSize = 0;
 
 	//VS byte code
@@ -199,5 +200,6 @@ private:
 	
 
 	std::unique_ptr<Waves> mWaves;
+	std::unique_ptr<BlurFilter> mBlurFilter;
 };
 

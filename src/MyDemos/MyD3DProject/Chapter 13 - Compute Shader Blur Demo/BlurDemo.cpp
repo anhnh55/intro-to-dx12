@@ -27,7 +27,8 @@ bool BlurDemo::Initialize()
 	// Get the increment size of a descriptor in this heap type.  This is hardware specific, 
    // so we have to query this information.
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
+	mBlurFilter = std::make_unique<BlurFilter>(md3dDevice.Get(),
+		mClientWidth, mClientHeight, DXGI_FORMAT_R8G8B8A8_UNORM);
 	LoadTextures();
 	BuildLandGeometry();
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);//build wave data
@@ -66,6 +67,10 @@ void BlurDemo::OnResize()
 	//Builds a left-handed perspective projection matrix based on a field of view.
 	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * XM_PI, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
+	if (mBlurFilter != nullptr)
+	{
+		mBlurFilter->OnResize(mClientWidth, mClientHeight);
+	}
 }
 
 void BlurDemo::Update(const GameTimer& gt)
@@ -124,7 +129,7 @@ void BlurDemo::Draw(const GameTimer& gt)
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
 	//specify descriptor heap for SRV 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvSrvUavDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
@@ -145,9 +150,19 @@ void BlurDemo::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
-	// Indicate a state transition on the resource usage.
+	//execute compute shader blur
+	mBlurFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["horzBlur"].Get(), mPSOs["vertBlur"].Get(), CurrentBackBuffer(), 4);
+
+	// Prepare to copy blurred output to the back buffer.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+		D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST));
+
+	mCommandList->CopyResource(CurrentBackBuffer(), mBlurFilter->Output());
+
+	// Transition to PRESENT state.
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
 
 	// Done recording commands.
 	ThrowIfFailed(mCommandList->Close());
@@ -186,7 +201,7 @@ void BlurDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
@@ -686,16 +701,19 @@ void BlurDemo::LoadTextures()
 	//
 	// Create the SRV heap.
 	//
+	const int textureDescriptorCount = 3;
+	const int blurDescriptorCount = 4;
+
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 3; //because we load 3 textures
+	srvHeapDesc.NumDescriptors = textureDescriptorCount + blurDescriptorCount;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mCbvSrvUavDescriptorHeap)));
 
 	//
 	// Fill out the heap with actual descriptors.
 	//
-	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	auto grassTexResource = mTextures["grassTex"]->Resource;
 	auto waterTexResource = mTextures["waterTex"]->Resource;
@@ -722,6 +740,15 @@ void BlurDemo::LoadTextures()
 
 	srvDesc.Format = fenceTexResource->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(fenceTexResource.Get(), &srvDesc, descriptorHandle);
+
+	//
+	// Fill out the heap with the descriptors to the BlurFilter resources.
+	//
+
+	mBlurFilter->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), 3, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(), 3, mCbvSrvUavDescriptorSize),
+		mCbvSrvUavDescriptorSize);
 }
 
 void BlurDemo::BuildLandGeometry()

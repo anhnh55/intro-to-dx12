@@ -45,6 +45,9 @@
     <ClCompile Include="Chapter 13 - Compute Shader Blur Demo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BlurFilter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\Common\d3dApp.h">
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="BlurDemo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BlurFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

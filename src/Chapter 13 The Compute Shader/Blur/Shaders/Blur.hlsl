@@ -30,6 +30,7 @@ Texture2D gInput            : register(t0);
 RWTexture2D<float4> gOutput : register(u0);
 
 #define N 256
+//Pixels near the boundaries of the thread group will read pixels outside the thread group due to the blurradius.
 #define CacheSize (N + 2*gMaxBlurRadius)
 groupshared float4 gCache[CacheSize];
 
@@ -48,20 +49,22 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID,
 	
 	// This thread group runs N threads.  To get the extra 2*BlurRadius pixels, 
 	// have 2*BlurRadius threads sample an extra pixel.
-	if(groupThreadID.x < gBlurRadius)
+	if(groupThreadID.x < gBlurRadius) //R left most threads in group
 	{
 		// Clamp out of bound samples that occur at image borders.
 		int x = max(dispatchThreadID.x - gBlurRadius, 0);
 		gCache[groupThreadID.x] = gInput[int2(x, dispatchThreadID.y)];
 	}
-	if(groupThreadID.x >= N-gBlurRadius)
+	if(groupThreadID.x >= N-gBlurRadius) //R right most threads in group
 	{
 		// Clamp out of bound samples that occur at image borders.
 		int x = min(dispatchThreadID.x + gBlurRadius, gInput.Length.x-1);
+		//note that cache index run from 0 to N + 2R - 1
 		gCache[groupThreadID.x+2*gBlurRadius] = gInput[int2(x, dispatchThreadID.y)];
 	}
 
 	// Clamp out of bound samples that occur at image borders.
+	//note: size of dispatch threads can be larger than input size that why get min
 	gCache[groupThreadID.x+gBlurRadius] = gInput[min(dispatchThreadID.xy, gInput.Length.xy-1)];
 
 	// Wait for all threads to finish.
@@ -113,7 +116,6 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID,
 	
 	// Clamp out of bound samples that occur at image borders.
 	gCache[groupThreadID.y+gBlurRadius] = gInput[min(dispatchThreadID.xy, gInput.Length.xy-1)];
-
 
 	// Wait for all threads to finish.
 	GroupMemoryBarrierWithGroupSync();
