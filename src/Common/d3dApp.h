@@ -64,7 +64,8 @@ protected:
 
 	ID3D12Resource* CurrentBackBuffer()const;
 	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
-	D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
+    D3D12_GPU_DESCRIPTOR_HANDLE CurrentBackBufferViewGPU() const;
+    D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 
 	void CalculateFrameStats();
 

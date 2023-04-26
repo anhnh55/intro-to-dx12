@@ -570,6 +570,14 @@ D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView()const
 		mRtvDescriptorSize);
 }
 
+D3D12_GPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferViewGPU()const
+{
+	return CD3DX12_GPU_DESCRIPTOR_HANDLE(
+		mRtvHeap->GetGPUDescriptorHandleForHeapStart(),
+		mCurrBackBuffer,
+		mRtvDescriptorSize);
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView()const
 {
 	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
