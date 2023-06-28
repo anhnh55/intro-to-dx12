@@ -43,6 +43,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 13 - Ex1", "Chapter
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 13 - Sobel Filter Demo", "Chapter 13 - Sobel Filter Demo\Chapter 13 - Sobel Filter Demo.vcxproj", "{0DF418BA-3B18-4C25-95F6-5264244E0832}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Chapter 14 Tessellation Quad Demo", "Chapter 14 Tessellation Quad Demo\Chapter 14 Tessellation Quad Demo.vcxproj", "{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -211,6 +213,14 @@ Global
 		{0DF418BA-3B18-4C25-95F6-5264244E0832}.Release|x64.Build.0 = Release|x64
 		{0DF418BA-3B18-4C25-95F6-5264244E0832}.Release|x86.ActiveCfg = Release|Win32
 		{0DF418BA-3B18-4C25-95F6-5264244E0832}.Release|x86.Build.0 = Release|Win32
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Debug|x64.ActiveCfg = Debug|x64
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Debug|x64.Build.0 = Debug|x64
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Debug|x86.ActiveCfg = Debug|Win32
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Debug|x86.Build.0 = Debug|Win32
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Release|x64.ActiveCfg = Release|x64
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Release|x64.Build.0 = Release|x64
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Release|x86.ActiveCfg = Release|Win32
+		{6AB1A2AD-66A5-4613-8C8E-2D9C0D923F4B}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
