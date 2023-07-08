@@ -321,10 +321,15 @@ void TessellationQuadDemo::BuildRootSignature()
 
 void TessellationQuadDemo::CompileShaders()
 {
-	mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "HS", "hs_5_0");
-	mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "DS", "ds_5_0");
-	mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "PS", "ps_5_0");
+	//mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "VS", "vs_5_0");
+	//mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "HS", "hs_5_0");
+	//mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "DS", "ds_5_0");
+	//mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "PS", "ps_5_0");
+
+	mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "HS", "hs_5_0");
+	mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "DS", "ds_5_0");
+	mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "PS", "ps_5_0");
 }
 
 void TessellationQuadDemo::BuildPSO()
@@ -480,7 +485,10 @@ void TessellationQuadDemo::BuildQuadPatchGeometry()
 		XMFLOAT3(+10.0f, 0.0f, -10.0f)
 	};
 
-	std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+	//std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+	std::array<std::int16_t, 6> indices = { 0, 1, 2,
+											1, 3, 2 };
+
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -506,7 +514,7 @@ void TessellationQuadDemo::BuildQuadPatchGeometry()
 	geo->IndexBufferByteSize = ibByteSize;
 
 	SubmeshGeometry quadSubmesh;
-	quadSubmesh.IndexCount = 4;
+	quadSubmesh.IndexCount = indices.size();
 	quadSubmesh.StartIndexLocation = 0;
 	quadSubmesh.BaseVertexLocation = 0;
 
@@ -539,7 +547,8 @@ void TessellationQuadDemo::BuildRenderItems()
 	quadPatchRitem->Mat = mMaterials["whiteMat"].get();
 	quadPatchRitem->Geo = mGeometries["quadpatchGeo"].get();
 	//4 control point patchlist instead of normal triangle
-	quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	//quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+	quadPatchRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
 	quadPatchRitem->IndexCount = quadPatchRitem->Geo->DrawArgs["quadpatch"].IndexCount;
 	quadPatchRitem->StartIndexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].StartIndexLocation;
 	quadPatchRitem->BaseVertexLocation = quadPatchRitem->Geo->DrawArgs["quadpatch"].BaseVertexLocation;
