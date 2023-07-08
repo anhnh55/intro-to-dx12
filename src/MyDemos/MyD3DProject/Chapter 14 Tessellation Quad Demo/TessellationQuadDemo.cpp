@@ -326,10 +326,15 @@ void TessellationQuadDemo::CompileShaders()
 	//mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "DS", "ds_5_0");
 	//mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\Tessellation.hlsl", nullptr, "PS", "ps_5_0");
 
-	mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "VS", "vs_5_0");
-	mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "HS", "hs_5_0");
-	mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "DS", "ds_5_0");
-	mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "PS", "ps_5_0");
+	//mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "VS", "vs_5_0");
+	//mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "HS", "hs_5_0");
+	//mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "DS", "ds_5_0");
+	//mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\TessellationTrianglePatch.hlsl", nullptr, "PS", "ps_5_0");
+
+	mShaders["tessVS"] = d3dUtil::CompileShader(L"Shaders\\TessellationIcosahedron.hlsl", nullptr, "VS", "vs_5_0");
+	mShaders["tessHS"] = d3dUtil::CompileShader(L"Shaders\\TessellationIcosahedron.hlsl", nullptr, "HS", "hs_5_0");
+	mShaders["tessDS"] = d3dUtil::CompileShader(L"Shaders\\TessellationIcosahedron.hlsl", nullptr, "DS", "ds_5_0");
+	mShaders["tessPS"] = d3dUtil::CompileShader(L"Shaders\\TessellationIcosahedron.hlsl", nullptr, "PS", "ps_5_0");
 }
 
 void TessellationQuadDemo::BuildPSO()
@@ -477,18 +482,55 @@ void TessellationQuadDemo::UpdateMaterialCBs(const GameTimer& gt)
 
 void TessellationQuadDemo::BuildQuadPatchGeometry()
 {
-	std::array<XMFLOAT3, 4> vertices =
-	{
-		XMFLOAT3(-10.0f, 0.0f, +10.0f),
-		XMFLOAT3(+10.0f, 0.0f, +10.0f),
-		XMFLOAT3(-10.0f, 0.0f, -10.0f),
-		XMFLOAT3(+10.0f, 0.0f, -10.0f)
+	//std::array<XMFLOAT3, 4> vertices =
+	//{
+	//	XMFLOAT3(-10.0f, 0.0f, +10.0f),
+	//	XMFLOAT3(+10.0f, 0.0f, +10.0f),
+	//	XMFLOAT3(-10.0f, 0.0f, -10.0f),
+	//	XMFLOAT3(+10.0f, 0.0f, -10.0f)
+	//};
+
+	// the icosahedron has 12 distinct vertices
+	std::array<XMFLOAT3, 12> vertices = {
+		XMFLOAT3(-0.26286500f, 0.0000000f, 0.42532500f),
+		XMFLOAT3(0.26286500f, 0.0000000f, 0.42532500f),
+		XMFLOAT3(-0.26286500f, 0.0000000f, -0.42532500f),
+		XMFLOAT3(0.26286500f, 0.0000000f, -0.42532500f),
+		XMFLOAT3(0.0000000f, 0.42532500f, 0.26286500f),
+		XMFLOAT3(0.0000000f, 0.42532500f, -0.26286500f),
+		XMFLOAT3(0.0000000f, -0.42532500f, 0.26286500f),
+		XMFLOAT3(0.0000000f, -0.42532500f, -0.26286500f),
+		XMFLOAT3(0.42532500f, 0.26286500f, 0.0000000f),
+		XMFLOAT3(-0.42532500f, 0.26286500f, 0.0000000f),
+		XMFLOAT3(0.42532500f, -0.26286500f, 0.0000000f),
+		XMFLOAT3(-0.42532500f, -0.26286500f, 0.0000000f)
 	};
 
-	//std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
-	std::array<std::int16_t, 6> indices = { 0, 1, 2,
-											1, 3, 2 };
 
+
+	//std::array<std::int16_t, 4> indices = { 0, 1, 2, 3 };
+	//std::array<std::int16_t, 6> indices = { 0, 1, 2,
+	//										1, 3, 2 };
+	std::array<std::int16_t, 60> indices = { 0, 6, 1,
+											0, 11, 6,
+											1, 4, 0,
+											1, 8, 4,
+											1, 10, 8,
+											2, 5, 3,
+											2, 9, 5,
+											2, 11, 9,
+											3, 7, 2,
+											3, 10, 7,
+											4, 8, 5,
+											4, 9, 0,
+											5, 8, 3,
+											5, 9, 4,
+											6, 10, 1,
+											6, 11, 7,
+											7, 10, 6,
+											7, 11, 2,
+											8, 10, 3,
+											9, 11, 0};
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -542,6 +584,7 @@ void TessellationQuadDemo::BuildRenderItems()
 {
 	auto quadPatchRitem = std::make_unique<RenderItem>();
 	quadPatchRitem->World = MathHelper::Identity4x4();
+	//XMStoreFloat4x4(&quadPatchRitem->World, XMMatrixScaling(20.0f, 20.0f, 20.0f));
 	quadPatchRitem->TexTransform = MathHelper::Identity4x4();
 	quadPatchRitem->ObjCBIndex = 0;
 	quadPatchRitem->Mat = mMaterials["whiteMat"].get();
