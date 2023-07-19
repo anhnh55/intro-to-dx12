@@ -208,6 +208,15 @@ void Camera::Pitch(float angle)
 	XMStoreFloat3(&mLook, XMVector3TransformNormal(XMLoadFloat3(&mLook), R));
 
 	mViewDirty = true;
+
+
+	//XMMATRIX R = XMMatrixRotationX(angle);
+
+	//XMStoreFloat3(&mRight, XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
+	//XMStoreFloat3(&mUp, XMVector3TransformNormal(XMLoadFloat3(&mUp), R));
+	//XMStoreFloat3(&mLook, XMVector3TransformNormal(XMLoadFloat3(&mLook), R));
+
+	//mViewDirty = true;
 }
 
 void Camera::RotateY(float angle)
@@ -221,6 +230,15 @@ void Camera::RotateY(float angle)
 	XMStoreFloat3(&mLook, XMVector3TransformNormal(XMLoadFloat3(&mLook), R));
 
 	mViewDirty = true;
+
+	// Rotate up and look vector about the right vector.
+
+	//XMMATRIX R = XMMatrixRotationAxis(XMLoadFloat3(&mUp), angle);
+
+	//XMStoreFloat3(&mRight, XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
+	//XMStoreFloat3(&mLook, XMVector3TransformNormal(XMLoadFloat3(&mLook), R));
+
+	//mViewDirty = true;
 }
 
 void Camera::UpdateViewMatrix()
@@ -239,7 +257,7 @@ void Camera::UpdateViewMatrix()
 		// U, L already ortho-normal, so no need to normalize cross product.
 		R = XMVector3Cross(U, L);
 
-		// Fill in the view matrix entries.
+		// Fill in the view matrix entries. (eq 15.1 in the book)
 		float x = -XMVectorGetX(XMVector3Dot(P, R));
 		float y = -XMVectorGetX(XMVector3Dot(P, U));
 		float z = -XMVectorGetX(XMVector3Dot(P, L));
