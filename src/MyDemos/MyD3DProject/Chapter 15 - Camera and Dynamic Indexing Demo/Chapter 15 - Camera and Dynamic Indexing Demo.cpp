@@ -71,6 +71,7 @@ private:
     virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	virtual void OnKeyUp(UINT8 key) override;
 
     void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
@@ -122,6 +123,10 @@ private:
 	Camera mCamera;
 
     POINT mLastMousePos;
+
+	//test shading rate
+	D3D12_VARIABLE_SHADING_RATE_TIER m_shadingRateTier;
+	D3D12_SHADING_RATE m_shadingRate;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -162,6 +167,17 @@ bool CameraAndDynamicIndexingApp::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
+
+	// Check that variable rate shading is supported.
+	D3D12_FEATURE_DATA_D3D12_OPTIONS6 options = {};
+	if (SUCCEEDED(md3dDevice->CheckFeatureSupport(
+		D3D12_FEATURE_D3D12_OPTIONS6,
+		&options,
+		sizeof(options))))
+	{
+		m_shadingRateTier = options.VariableShadingRateTier;
+		m_shadingRate = D3D12_SHADING_RATE_1X1;
+	}
 
     // Reset the command list to prep for initialization commands.
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
@@ -250,6 +266,12 @@ void CameraAndDynamicIndexingApp::Draw(const GameTimer& gt)
     // Specify the buffers we are going to render to.
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	// Set the shading rate.
+	if (m_shadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER_1)
+	{
+		reinterpret_cast<ID3D12GraphicsCommandList5*>(mCommandList.Get())->RSSetShadingRate(m_shadingRate, nullptr);
+	}
+
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
@@ -322,6 +344,19 @@ void CameraAndDynamicIndexingApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
+
+void CameraAndDynamicIndexingApp::OnKeyUp(UINT8 key)
+{
+	if (key == 'G')
+	{
+		if (m_shadingRate == D3D12_SHADING_RATE_1X1) {
+			m_shadingRate = D3D12_SHADING_RATE_4X4;
+		}
+		else {
+			m_shadingRate = D3D12_SHADING_RATE_1X1;
+		}
+	}
+}
  
 void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 {
@@ -339,6 +374,16 @@ void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 	if(GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f*dt);
 
+	//if (GetAsyncKeyState('G') & 0x8000)
+	//{
+	//	if (m_shadingRate == D3D12_SHADING_RATE_1X1) {
+	//		m_shadingRate = D3D12_SHADING_RATE_4X4;
+	//	}
+	//	else {
+	//		m_shadingRate = D3D12_SHADING_RATE_1X1;
+	//	}
+	//}
+		
 	mCamera.UpdateViewMatrix();
 }
  
