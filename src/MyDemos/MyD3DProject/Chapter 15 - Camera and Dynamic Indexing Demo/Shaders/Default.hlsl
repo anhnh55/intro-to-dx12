@@ -17,7 +17,7 @@
 
 // Include structures and functions for lighting.
 #include "LightingUtil.hlsl"
-
+// Constant data that varies per material.
 struct MaterialData
 {
 	float4   DiffuseAlbedo;
@@ -58,7 +58,7 @@ cbuffer cbPerObject : register(b0)
 	uint gObjPad2;
 };
 
-// Constant data that varies per material.
+
 cbuffer cbPass : register(b1)
 {
     float4x4 gView;

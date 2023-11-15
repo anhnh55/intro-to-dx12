@@ -52,7 +52,9 @@ protected:
 	virtual void OnMouseDown(WPARAM btnState, int x, int y){ }
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
 	virtual void OnMouseMove(WPARAM btnState, int x, int y){ }
-
+    //handling key input
+    virtual void OnKeyDown(UINT8 /*key*/) {}
+    virtual void OnKeyUp(UINT8 /*key*/) {}
 protected:
 
 	bool InitMainWindow();
@@ -123,7 +125,7 @@ protected:
 	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
     DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	int mClientWidth = 800;
-	int mClientHeight = 600;
+	int mClientWidth = 1366;
+	int mClientHeight = 768;
 };
 

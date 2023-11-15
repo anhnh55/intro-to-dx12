@@ -71,6 +71,7 @@ private:
     virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	virtual void OnKeyUp(UINT8 key) override;
 
     void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
@@ -90,6 +91,11 @@ private:
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+
+	//VRS testing code
+	//allocate buffer and set data
+	void AllocateScreenspaceImage(UINT width = 1, UINT height = 1);
+	void SetScreenspaceImageData(ID3D12GraphicsCommandList5* cl, BYTE* data, size_t dataSize);
 
 private:
 
@@ -122,6 +128,15 @@ private:
 	Camera mCamera;
 
     POINT mLastMousePos;
+
+	//test shading rate
+	D3D12_VARIABLE_SHADING_RATE_TIER m_shadingRateTier;
+	D3D12_SHADING_RATE m_shadingRate;
+    UINT m_shadingRateTileSize;
+
+	bool m_platformSupportsTier2VRS;
+	ComPtr<ID3D12Resource> m_spScreenspaceImage;
+	ComPtr<ID3D12Resource> m_spScreenspaceImageUpload;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -162,6 +177,18 @@ bool CameraAndDynamicIndexingApp::Initialize()
 {
     if(!D3DApp::Initialize())
         return false;
+
+	// Check that variable rate shading is supported.
+	D3D12_FEATURE_DATA_D3D12_OPTIONS6 options = {};
+	if (SUCCEEDED(md3dDevice->CheckFeatureSupport(
+		D3D12_FEATURE_D3D12_OPTIONS6,
+		&options,
+		sizeof(options))))
+	{
+		m_shadingRateTier = options.VariableShadingRateTier;
+		m_shadingRate = D3D12_SHADING_RATE_1X1;
+		m_shadingRateTileSize = options.ShadingRateImageTileSize;
+	}
 
     // Reset the command list to prep for initialization commands.
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
@@ -250,6 +277,22 @@ void CameraAndDynamicIndexingApp::Draw(const GameTimer& gt)
     // Specify the buffers we are going to render to.
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
+	// Set the shading rate.
+	if (m_shadingRateTier == D3D12_VARIABLE_SHADING_RATE_TIER_2)
+	{
+		auto cmdList5 = reinterpret_cast<ID3D12GraphicsCommandList5*>(mCommandList.Get());
+		//reinterpret_cast<ID3D12GraphicsCommandList5*>(mCommandList.Get())->RSSetShadingRate(m_shadingRate, nullptr);
+		UINT imgWidth = ceil((float)mClientWidth / m_shadingRateTileSize);
+		UINT imgHeight = ceil((float)mClientHeight / m_shadingRateTileSize);
+		std::vector<BYTE> screenspaceImageData;
+		screenspaceImageData.resize(imgWidth * imgHeight);
+		for (int x = 0; x < screenspaceImageData.size(); ++x) {
+			screenspaceImageData[x] = static_cast<BYTE>(D3D12_SHADING_RATE_4X4);
+		}
+		SetScreenspaceImageData(cmdList5, screenspaceImageData.data(), screenspaceImageData.size());
+		cmdList5->RSSetShadingRateImage(m_spScreenspaceImage.Get());
+	}
+
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
@@ -322,6 +365,19 @@ void CameraAndDynamicIndexingApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
+
+void CameraAndDynamicIndexingApp::OnKeyUp(UINT8 key)
+{
+	if (key == 'G')
+	{
+		if (m_shadingRate == D3D12_SHADING_RATE_1X1) {
+			m_shadingRate = D3D12_SHADING_RATE_4X4;
+		}
+		else {
+			m_shadingRate = D3D12_SHADING_RATE_1X1;
+		}
+	}
+}
  
 void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 {
@@ -339,6 +395,16 @@ void CameraAndDynamicIndexingApp::OnKeyboardInput(const GameTimer& gt)
 	if(GetAsyncKeyState('D') & 0x8000)
 		mCamera.Strafe(10.0f*dt);
 
+	//if (GetAsyncKeyState('G') & 0x8000)
+	//{
+	//	if (m_shadingRate == D3D12_SHADING_RATE_1X1) {
+	//		m_shadingRate = D3D12_SHADING_RATE_4X4;
+	//	}
+	//	else {
+	//		m_shadingRate = D3D12_SHADING_RATE_1X1;
+	//	}
+	//}
+		
 	mCamera.UpdateViewMatrix();
 }
  
@@ -961,5 +1027,68 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> CameraAndDynamicIndexingApp::Ge
 		pointWrap, pointClamp,
 		linearWrap, linearClamp, 
 		anisotropicWrap, anisotropicClamp };
+}
+
+void CameraAndDynamicIndexingApp::AllocateScreenspaceImage(UINT width, UINT height)
+{
+	//shading rate image must be a 2D texture with a single mip
+	CD3DX12_RESOURCE_DESC screenspaceImageDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+		DXGI_FORMAT_R8_UINT, //format of  DXGI_FORMAT_R8_UINT
+		static_cast<UINT64>(width),
+		height,
+		1 /*arraySize*/,
+		1 /*mipLevels*/);//single mip
+
+	//This texture must have the D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE state applied.
+	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
+
+	CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&screenspaceImageDesc,
+		initialState,
+		nullptr,
+		IID_PPV_ARGS(&m_spScreenspaceImage)));
+
+	UINT64 uploadSize;
+	//this function returns required upload buffer size 
+	md3dDevice->GetCopyableFootprints(&screenspaceImageDesc, 0, 1, 0, nullptr, nullptr, nullptr, &uploadSize);
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(uploadSize),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&m_spScreenspaceImageUpload)));
+}
+
+void CameraAndDynamicIndexingApp::SetScreenspaceImageData(ID3D12GraphicsCommandList5* cl, BYTE* data, size_t dataSize)
+{
+	// Map the screenspace image upload buffer and write the value
+	UINT8* pMappedRange;
+	CD3DX12_RANGE readRange(0, 0);  // We do not intend to read from this resource on the CPU.
+	ThrowIfFailed(m_spScreenspaceImageUpload->Map(0, &readRange, reinterpret_cast<void**>(&pMappedRange)));
+	memcpy(pMappedRange, data, dataSize);
+	m_spScreenspaceImageUpload->Unmap(0, nullptr);
+
+	// Copy from the upload buffer to the screenspace image
+	CD3DX12_TEXTURE_COPY_LOCATION Src;
+	Src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	Src.pResource = m_spScreenspaceImageUpload.Get();
+	auto desc = m_spScreenspaceImage->GetDesc();
+	md3dDevice->GetCopyableFootprints(&desc, 0, 1, 0, &Src.PlacedFootprint, nullptr, nullptr, nullptr);
+
+	CD3DX12_TEXTURE_COPY_LOCATION Dst;
+	Dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	Dst.pResource = m_spScreenspaceImage.Get();
+	Dst.SubresourceIndex = 0;
+
+	D3D12_RESOURCE_STATES previousState = D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE;
+
+	cl->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_spScreenspaceImage.Get(), previousState, D3D12_RESOURCE_STATE_COPY_DEST));
+	cl->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+	cl->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_spScreenspaceImage.Get(), D3D12_RESOURCE_STATE_COPY_DEST, previousState));
 }
 
