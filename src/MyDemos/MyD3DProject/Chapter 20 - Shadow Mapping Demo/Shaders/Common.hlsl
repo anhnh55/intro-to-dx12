@@ -111,7 +111,7 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, floa
 //---------------------------------------------------------------------------------------
 // PCF for shadow mapping.
 //---------------------------------------------------------------------------------------
-//factor of 0 means point is in shadow, 1 means not in shadow
+
 float CalcShadowFactor(float4 shadowPosH)
 {
     // Complete projection by doing division by w.

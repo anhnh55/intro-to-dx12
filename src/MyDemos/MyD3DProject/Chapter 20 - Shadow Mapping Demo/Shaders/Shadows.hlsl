@@ -55,7 +55,6 @@ void PS(VertexOut pin)
     // shader early, thereby skipping the rest of the shader code.
     clip(diffuseAlbedo.a - 0.1f);
 #endif
-	//note that this pixel shader does not return a value because we only want depth values in shadow map pass
 }
 
 
