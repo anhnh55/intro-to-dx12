@@ -21,8 +21,12 @@ VertexOut VS(VertexIn vin)
 {
 	VertexOut vout = (VertexOut)0.0f;
 
+	// Transform to world space.
+	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+	//vout.PosH = posW.xyz;
+	vout.PosH = posW;
     // Already in homogeneous clip space.
-    vout.PosH = float4(vin.PosL, 1.0f);
+    //vout.PosH = float4(vin.PosL, 1.0f);
 	
 	vout.TexC = vin.TexC;
 	

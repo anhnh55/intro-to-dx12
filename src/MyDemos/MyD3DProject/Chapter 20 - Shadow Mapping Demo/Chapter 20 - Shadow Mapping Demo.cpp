@@ -9,6 +9,7 @@
 #include "../../../Common/Camera.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
+#include "SobelFilter.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -92,6 +93,8 @@ private:
 
 	void LoadTextures();
     void BuildRootSignature();
+	//build compute root signature
+	void BuildPostProcessRootSignature();
 	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildShapeGeometry();
@@ -113,7 +116,8 @@ private:
     UINT mCbvSrvDescriptorSize = 0;
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-
+	//compute shader root signature
+	ComPtr<ID3D12RootSignature> mPostProcessRootSignature = nullptr;
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
@@ -136,6 +140,7 @@ private:
 	UINT mShadowMapHeapIndex = 0;
 	UINT mNullCubeSrvIndex = 0;
 	UINT mNullTexSrvIndex = 0;
+	UINT mSobelOutputTexIndex = 0;
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
     PassConstants mMainPassCB; // index 0 of pass cbuffer.
@@ -163,6 +168,9 @@ private:
 
 	DirectX::BoundingSphere mSceneBounds;
     POINT mLastMousePos;
+
+	//sobel filter related
+	std::unique_ptr<SobelFilter> mSobelFilter = nullptr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -217,9 +225,13 @@ bool ShadowMappingDemoApp::Initialize()
 
 	mShadowMap = std::make_unique<ShadowMap>(
 		md3dDevice.Get(), 2048, 2048);
-
+	mSobelFilter = std::make_unique<SobelFilter>(
+		md3dDevice.Get(),
+		2048, 2048,//same size as shadow map
+		mBackBufferFormat);
 	LoadTextures();
 	BuildRootSignature();
+	BuildPostProcessRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildShapeGeometry();
@@ -369,6 +381,10 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	DrawSceneToShadowMap();
+
+	//run sobel filter on shadow map 
+	mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["sobel"].Get(), mShadowMap->Srv());
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -731,6 +747,45 @@ void ShadowMappingDemoApp::BuildRootSignature()
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
 
+void ShadowMappingDemoApp::BuildPostProcessRootSignature()
+{
+	CD3DX12_DESCRIPTOR_RANGE srvTable;
+	srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+	CD3DX12_DESCRIPTOR_RANGE uavTable;
+	uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+	// Root parameter can be a table, root descriptor or root constants.
+	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+
+	// Perfomance TIP: Order from most frequent to least frequent.
+	slotRootParameter[0].InitAsDescriptorTable(1, &srvTable);
+	slotRootParameter[1].InitAsDescriptorTable(1, &uavTable);
+
+	// A root signature is an array of root parameters.
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
+		0, nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(md3dDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(mPostProcessRootSignature.GetAddressOf())));
+}
+
 void ShadowMappingDemoApp::BuildDescriptorHeaps()
 {
 	//
@@ -787,7 +842,7 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 
 	mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
 	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
-
+	mSobelOutputTexIndex = mNullTexSrvIndex + 1;
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
@@ -810,6 +865,11 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+
+	mSobelFilter->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mSobelOutputTexIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSobelOutputTexIndex, mCbvSrvUavDescriptorSize),
+		mCbvSrvUavDescriptorSize);
 }
 
 void ShadowMappingDemoApp::BuildShadersAndInputLayout()
@@ -832,6 +892,8 @@ void ShadowMappingDemoApp::BuildShadersAndInputLayout()
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
+
+	mShaders["sobelCS"] = d3dUtil::CompileShader(L"Shaders\\Sobel.hlsl", nullptr, "SobelCS", "cs_5_0");
 
     mInputLayout =
     {
@@ -1197,6 +1259,19 @@ void ShadowMappingDemoApp::BuildPSOs()
 		mShaders["skyPS"]->GetBufferSize()
 	};
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
+
+	//
+	// PSO for sobel compute shader
+	//
+	D3D12_COMPUTE_PIPELINE_STATE_DESC sobelPSO = {};
+	sobelPSO.pRootSignature = mPostProcessRootSignature.Get();
+	sobelPSO.CS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["sobelCS"]->GetBufferPointer()),
+		mShaders["sobelCS"]->GetBufferSize()
+	};
+	sobelPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&sobelPSO, IID_PPV_ARGS(&mPSOs["sobel"])));
 }
 
 void ShadowMappingDemoApp::BuildFrameResources()
@@ -1278,24 +1353,38 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::Sky].push_back(skyRitem.get());
 	mAllRitems.push_back(std::move(skyRitem));
 
-	auto quadRitem = std::make_unique<RenderItem>();
-	quadRitem->World = MathHelper::Identity4x4();
-	quadRitem->TexTransform = MathHelper::Identity4x4();
-	quadRitem->ObjCBIndex = 1;
-	quadRitem->Mat = mMaterials["bricks0"].get();
-	quadRitem->Geo = mGeometries["shapeGeo"].get();
-	quadRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	quadRitem->IndexCount = quadRitem->Geo->DrawArgs["quad"].IndexCount;
-	quadRitem->StartIndexLocation = quadRitem->Geo->DrawArgs["quad"].StartIndexLocation;
-	quadRitem->BaseVertexLocation = quadRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+	auto debugShadowMapItem = std::make_unique<RenderItem>();
+	debugShadowMapItem->World = MathHelper::Identity4x4();
+	debugShadowMapItem->TexTransform = MathHelper::Identity4x4();
+	debugShadowMapItem->ObjCBIndex = 1;
+	debugShadowMapItem->Mat = mMaterials["bricks0"].get();
+	debugShadowMapItem->Geo = mGeometries["shapeGeo"].get();
+	debugShadowMapItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	debugShadowMapItem->IndexCount = debugShadowMapItem->Geo->DrawArgs["quad"].IndexCount;
+	debugShadowMapItem->StartIndexLocation = debugShadowMapItem->Geo->DrawArgs["quad"].StartIndexLocation;
+	debugShadowMapItem->BaseVertexLocation = debugShadowMapItem->Geo->DrawArgs["quad"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Debug].push_back(quadRitem.get());
-	mAllRitems.push_back(std::move(quadRitem));
+	mRitemLayer[(int)RenderLayer::Debug].push_back(debugShadowMapItem.get());
+	mAllRitems.push_back(std::move(debugShadowMapItem));
+
+	auto debugShadowMapSobelItem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&debugShadowMapSobelItem->World, XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	debugShadowMapSobelItem->TexTransform = MathHelper::Identity4x4();
+	debugShadowMapSobelItem->ObjCBIndex = 2;
+	debugShadowMapSobelItem->Mat = mMaterials["bricks0"].get();
+	debugShadowMapSobelItem->Geo = mGeometries["shapeGeo"].get();
+	debugShadowMapSobelItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	debugShadowMapSobelItem->IndexCount = debugShadowMapSobelItem->Geo->DrawArgs["quad"].IndexCount;
+	debugShadowMapSobelItem->StartIndexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].StartIndexLocation;
+	debugShadowMapSobelItem->BaseVertexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Debug].push_back(debugShadowMapSobelItem.get());
+	mAllRitems.push_back(std::move(debugShadowMapSobelItem));
 
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 0.5f, 1.0f));
-	boxRitem->ObjCBIndex = 2;
+	boxRitem->ObjCBIndex = 3;
 	boxRitem->Mat = mMaterials["bricks0"].get();
 	boxRitem->Geo = mGeometries["shapeGeo"].get();
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1309,7 +1398,7 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	auto skullRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&skullRitem->World, XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f));
 	skullRitem->TexTransform = MathHelper::Identity4x4();
-	skullRitem->ObjCBIndex = 3;
+	skullRitem->ObjCBIndex = 4;
 	skullRitem->Mat = mMaterials["skullMat"].get();
 	skullRitem->Geo = mGeometries["skullGeo"].get();
 	skullRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1323,7 +1412,7 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	auto gridRitem = std::make_unique<RenderItem>();
 	gridRitem->World = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
-	gridRitem->ObjCBIndex = 4;
+	gridRitem->ObjCBIndex = 5;
 	gridRitem->Mat = mMaterials["tile0"].get();
 	gridRitem->Geo = mGeometries["shapeGeo"].get();
 	gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1335,7 +1424,7 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	mAllRitems.push_back(std::move(gridRitem));
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
-	UINT objCBIndex = 5;
+	UINT objCBIndex = 6;
 	for (int i = 0; i < 5; ++i)
 	{
 		auto leftCylRitem = std::make_unique<RenderItem>();
