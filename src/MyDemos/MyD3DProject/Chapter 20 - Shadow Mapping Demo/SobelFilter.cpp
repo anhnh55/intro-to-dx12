@@ -88,6 +88,11 @@ D3D12_SHADER_RESOURCE_VIEW_DESC SobelFilter::SrvDesc()
 	return msrvDesc;
 }
 
+CD3DX12_GPU_DESCRIPTOR_HANDLE SobelFilter::Srv() const
+{
+	return mhGpuSrv;
+}
+
 void SobelFilter::BuildDescriptors()
 {
 	msrvDesc = {};

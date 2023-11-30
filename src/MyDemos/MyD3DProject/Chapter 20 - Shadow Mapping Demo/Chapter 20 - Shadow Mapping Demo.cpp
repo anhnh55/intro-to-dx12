@@ -146,7 +146,7 @@ private:
 	UINT mNullTexSrvIndex = 0;
 	UINT mSobelOutputHeapIndex = 0;
 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mhNullSrv;
     PassConstants mMainPassCB; // index 0 of pass cbuffer.
 	PassConstants mShadowPassCB;// index 1 of pass cbuffer.
 
@@ -377,7 +377,7 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 	// Bind null SRV for shadow map pass.
-	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
+	mCommandList->SetGraphicsRootDescriptorTable(3, mhNullSrv);
 
 	// Bind all the textures used in this scene.  Observe
 	// that we only have to specify the first descriptor in the table.  
@@ -672,17 +672,10 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 void ShadowMappingDemoApp::DrawShadowMapDebug()
 {
 	mCommandList->SetPipelineState(mPSOs["debug"].Get());
-
-	//map debug text to shadow map
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = mShadowMap->SrvDesc();
-	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	md3dDevice->CreateShaderResourceView(mShadowMap->Resource(), &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
-	
+	mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->Srv());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
 
-	//map debug text to sobel result
-	D3D12_SHADER_RESOURCE_VIEW_DESC sobelsrvDesc = mSobelFilter->SrvDesc();
-	md3dDevice->CreateShaderResourceView(mSobelFilter->Output(), &sobelsrvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
+	mCommandList->SetGraphicsRootDescriptorTable(5, mSobelFilter->Srv());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);
 }
 
@@ -727,26 +720,29 @@ void ShadowMappingDemoApp::LoadTextures()
 void ShadowMappingDemoApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable0;
-	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0, 0);//t0,t1,t2
+	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);//t0,t1
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
 	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 3, 0);//t3 is a texture array
 
+	CD3DX12_DESCRIPTOR_RANGE texTable2;
+	texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0);//t2
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 
 	// Perfomance TIP: Order from most frequent to least frequent.
-	slotRootParameter[0].InitAsConstantBufferView(0);
-	slotRootParameter[1].InitAsConstantBufferView(1);
-	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[0].InitAsConstantBufferView(0);//b0
+	slotRootParameter[1].InitAsConstantBufferView(1);//b1
+	slotRootParameter[2].InitAsShaderResourceView(0, 1);//t0 space 1
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);//t0, t1
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);//t3
+	slotRootParameter[5].InitAsDescriptorTable(1, &texTable2, D3D12_SHADER_VISIBILITY_PIXEL);//t2
 
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -874,31 +870,35 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
 
 	//texture for debug layer, resource view is nullptr for now, we will bind when draw debug
-	mDebugTexHeapIndex = mShadowMapHeapIndex + 1; 
+	mDebugTexHeapIndex = mShadowMapHeapIndex + 1;
+	srvDesc.TextureCube.MostDetailedMip = 0;
+	srvDesc.TextureCube.MipLevels = 1;
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
 
 	mSobelOutputHeapIndex = mDebugTexHeapIndex + 1;
-	mNullCubeSrvIndex = mDebugTexHeapIndex + 1;
-	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
-
-	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-
-	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
-	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
-
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
-
 
 	mSobelFilter->BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
+
+	mNullCubeSrvIndex = mSobelOutputHeapIndex + mSobelFilter->DescriptorCount();
+	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
+
+	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+	mhNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+
+	//srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	//srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//srvDesc.Texture2D.MostDetailedMip = 0;
+	//srvDesc.Texture2D.MipLevels = 1;
+	//srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
 }
 
 void ShadowMappingDemoApp::BuildShadersAndInputLayout()

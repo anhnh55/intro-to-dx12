@@ -41,6 +41,7 @@ public:
 		CD3DX12_GPU_DESCRIPTOR_HANDLE input);
 	ID3D12Resource* Output();
 	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc();
+	CD3DX12_GPU_DESCRIPTOR_HANDLE Srv()const;
 private:
 	void BuildDescriptors();
 	void BuildResource();
