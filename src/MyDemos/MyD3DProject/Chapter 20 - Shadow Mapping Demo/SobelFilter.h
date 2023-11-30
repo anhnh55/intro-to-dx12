@@ -40,7 +40,7 @@ public:
 		ID3D12PipelineState* pso,
 		CD3DX12_GPU_DESCRIPTOR_HANDLE input);
 	ID3D12Resource* Output();
-
+	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc();
 private:
 	void BuildDescriptors();
 	void BuildResource();
@@ -58,7 +58,7 @@ private:
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuUav;
-
+	D3D12_SHADER_RESOURCE_VIEW_DESC msrvDesc;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mOutput = nullptr;
 };
 

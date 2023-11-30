@@ -55,8 +55,9 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
-	Debug,
 	Sky,
+	Debug,
+	Debug2,
 	Count
 };
 
@@ -90,6 +91,8 @@ private:
 	//update shadow transform matrix
 	void UpdateShadowTransform(const GameTimer& gt);
 	void DrawSceneToShadowMap();//render scene depth into  shadow map (as seen from light view)
+	//draw debug
+	void DrawShadowMapDebug();
 
 	void LoadTextures();
     void BuildRootSignature();
@@ -138,9 +141,10 @@ private:
 
 	UINT mSkyTexHeapIndex = 0;
 	UINT mShadowMapHeapIndex = 0;
+	UINT mDebugTexHeapIndex = 0;
 	UINT mNullCubeSrvIndex = 0;
 	UINT mNullTexSrvIndex = 0;
-	UINT mSobelOutputTexIndex = 0;
+	UINT mSobelOutputHeapIndex = 0;
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv;
     PassConstants mMainPassCB; // index 0 of pass cbuffer.
@@ -382,12 +386,12 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 
 	DrawSceneToShadowMap();
 
-	//run sobel filter on shadow map 
-	mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
-		mPSOs["sobel"].Get(), mShadowMap->Srv());
-
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	//run sobel edge detection on shadow map 
+	mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["sobel"].Get(), mShadowMap->Srv());
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -415,8 +419,9 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-	mCommandList->SetPipelineState(mPSOs["debug"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+	DrawShadowMapDebug();
+	/*mCommandList->SetPipelineState(mPSOs["debug"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);*/
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
@@ -664,6 +669,23 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
+void ShadowMappingDemoApp::DrawShadowMapDebug()
+{
+	mCommandList->SetPipelineState(mPSOs["debug"].Get());
+
+	//map debug text to shadow map
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = mShadowMap->SrvDesc();
+	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	md3dDevice->CreateShaderResourceView(mShadowMap->Resource(), &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
+	
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+
+	//map debug text to sobel result
+	D3D12_SHADER_RESOURCE_VIEW_DESC sobelsrvDesc = mSobelFilter->SrvDesc();
+	md3dDevice->CreateShaderResourceView(mSobelFilter->Output(), &sobelsrvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);
+}
+
 
 void ShadowMappingDemoApp::LoadTextures()
 {
@@ -838,14 +860,26 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 	md3dDevice->CreateShaderResourceView(skyCubeMap.Get(), &srvDesc, hDescriptor);
 
 	mSkyTexHeapIndex = (UINT)tex2DList.size();
-	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
 
-	mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
-	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
-	mSobelOutputTexIndex = mNullTexSrvIndex + 1;
+
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	//shadow map 
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+	mShadowMap->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+
+	//texture for debug layer, resource view is nullptr for now, we will bind when draw debug
+	mDebugTexHeapIndex = mShadowMapHeapIndex + 1; 
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
+
+	mSobelOutputHeapIndex = mDebugTexHeapIndex + 1;
+	mNullCubeSrvIndex = mDebugTexHeapIndex + 1;
+	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
 	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
 	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
@@ -860,14 +894,10 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
 
-	mShadowMap->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
 
 	mSobelFilter->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mSobelOutputTexIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSobelOutputTexIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
 }
 
@@ -1377,7 +1407,7 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	debugShadowMapSobelItem->StartIndexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].StartIndexLocation;
 	debugShadowMapSobelItem->BaseVertexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Debug].push_back(debugShadowMapSobelItem.get());
+	mRitemLayer[(int)RenderLayer::Debug2].push_back(debugShadowMapSobelItem.get());
 	mAllRitems.push_back(std::move(debugShadowMapSobelItem));
 
 	auto boxRitem = std::make_unique<RenderItem>();

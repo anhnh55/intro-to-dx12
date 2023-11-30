@@ -18,6 +18,7 @@ public:
 
     UINT Width()const;
     UINT Height()const;
+	DXGI_FORMAT Format();
 	ID3D12Resource* Resource();
 	CD3DX12_GPU_DESCRIPTOR_HANDLE Srv()const;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE Dsv()const;
@@ -31,6 +32,8 @@ public:
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv);
 
 	void OnResize(UINT newWidth, UINT newHeight);
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc();
 
 private:
 	void BuildDescriptors();
@@ -50,7 +53,7 @@ private:
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuSrv;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhGpuSrv;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mhCpuDsv;
-
+	D3D12_SHADER_RESOURCE_VIEW_DESC msrvDesc;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mShadowMap = nullptr;
 };
 

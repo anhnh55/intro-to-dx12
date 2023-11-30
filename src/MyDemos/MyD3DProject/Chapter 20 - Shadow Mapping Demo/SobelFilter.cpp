@@ -83,14 +83,19 @@ ID3D12Resource* SobelFilter::Output()
 	return mOutput.Get();
 }
 
+D3D12_SHADER_RESOURCE_VIEW_DESC SobelFilter::SrvDesc()
+{
+	return msrvDesc;
+}
+
 void SobelFilter::BuildDescriptors()
 {
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = mFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = 1;
+	msrvDesc = {};
+	msrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	msrvDesc.Format = mFormat;
+	msrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	msrvDesc.Texture2D.MostDetailedMip = 0;
+	msrvDesc.Texture2D.MipLevels = 1;
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 
@@ -98,7 +103,7 @@ void SobelFilter::BuildDescriptors()
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 	uavDesc.Texture2D.MipSlice = 0;
 
-	md3dDevice->CreateShaderResourceView(mOutput.Get(), &srvDesc, mhCpuSrv);
+	md3dDevice->CreateShaderResourceView(mOutput.Get(), &msrvDesc, mhCpuSrv);
 	md3dDevice->CreateUnorderedAccessView(mOutput.Get(), nullptr, &uavDesc, mhCpuUav);
 }
 

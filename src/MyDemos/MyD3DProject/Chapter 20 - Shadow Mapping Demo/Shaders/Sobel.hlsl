@@ -37,7 +37,7 @@ void SobelCS(int3 dispatchThreadID : SV_DispatchThreadID)
 	float4 mag = sqrt(Gx*Gx + Gy*Gy);
 
 	// Make edges black, and nonedges white.
-	mag = 1.0f - saturate(CalcLuminance(mag.rgb));
+	//mag = 1.0f - saturate(CalcLuminance(mag.rgb));
 
 	gOutput[dispatchThreadID.xy] = mag;
 }
