@@ -269,7 +269,7 @@ void ShadowMappingDemoApp::CreateRtvAndDsvDescriptorHeaps()
 
 	// Add +1 DSV for shadow map.
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-	dsvHeapDesc.NumDescriptors = 2; //normally it is just 1 for depth map. But shadow map is a depth map for light view
+	dsvHeapDesc.NumDescriptors = 2; //normally it is just 1 for depth map. But we need 1 more for shadow map which is actually a depth map for light view
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
@@ -351,7 +351,7 @@ void ShadowMappingDemoApp::UpdateShadowPassCB(const GameTimer& gt)
 	mShadowPassCB.FarZ = mLightFarZ;
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
-	currPassCB->CopyData(1, mShadowPassCB);
+	currPassCB->CopyData(1, mShadowPassCB);//note that copy to second element (1 index) in the buffer
 }
 
 void ShadowMappingDemoApp::Draw(const GameTimer& gt)
@@ -591,7 +591,7 @@ void ShadowMappingDemoApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
-	currPassCB->CopyData(0, mMainPassCB);
+	currPassCB->CopyData(0, mMainPassCB);//note that copy to first element (0 index) in the buffer, so when drawing shadow map/scene the correct values would be set
 }
 
 void ShadowMappingDemoApp::UpdateShadowTransform(const GameTimer& gt)
