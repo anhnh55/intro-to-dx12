@@ -390,8 +390,8 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	//run sobel edge detection on shadow map 
-	mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
-		mPSOs["sobel"].Get(), mShadowMap->Srv());
+	/*mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["sobel"].Get(), mShadowMap->Srv());*/
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
