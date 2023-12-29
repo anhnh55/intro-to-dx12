@@ -1,5 +1,7 @@
 //=============================================================================
-// Performs edge detection using Sobel operator.
+// Generate edge map from depth map. The edge map is represented
+//in min/max form, where the min and max of the far pixels
+//are stored for edges
 //=============================================================================
 
 Texture2D gInput            : register(t0);
@@ -14,7 +16,7 @@ float CalcLuminance(float3 color)
 }
 
 [numthreads(16, 16, 1)]
-void SobelCS(int3 dispatchThreadID : SV_DispatchThreadID)
+void DepthExtentCS(int3 dispatchThreadID : SV_DispatchThreadID)
 {
     // Sample the pixels in the neighborhood of this pixel.
 	float4 c[3][3];

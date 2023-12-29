@@ -45,7 +45,7 @@
     <ClCompile Include="ShadowMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SobelFilter.cpp">
+    <ClCompile Include="DepthExtentFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -83,7 +83,7 @@
     <ClInclude Include="ShadowMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SobelFilter.h">
+    <ClInclude Include="DepthExtentFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

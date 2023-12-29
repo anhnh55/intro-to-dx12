@@ -1,10 +1,10 @@
 //***************************************************************************************
-// SobelFilter.cpp by Frank Luna (C) 2011 All Rights Reserved.
+// DepthExtentFilter.cpp by Frank Luna (C) 2011 All Rights Reserved.
 //***************************************************************************************
 
-#include "SobelFilter.h"
+#include "DepthExtentFilter.h"
  
-SobelFilter::SobelFilter(ID3D12Device* device, 
+DepthExtentFilter::DepthExtentFilter(ID3D12Device* device, 
 	                   UINT width, UINT height,
                        DXGI_FORMAT format)
 {
@@ -17,17 +17,17 @@ SobelFilter::SobelFilter(ID3D12Device* device,
 	BuildResource();
 }
 
-CD3DX12_GPU_DESCRIPTOR_HANDLE SobelFilter::OutputSrv()
+CD3DX12_GPU_DESCRIPTOR_HANDLE DepthExtentFilter::OutputSrv()
 {
 	return mhGpuSrv;
 }
 
-UINT SobelFilter::DescriptorCount()const
+UINT DepthExtentFilter::DescriptorCount()const
 {
 	return 2;
 }
 
-void SobelFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
+void DepthExtentFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	                              CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor,
 	                              UINT descriptorSize)
 {
@@ -40,7 +40,7 @@ void SobelFilter::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor,
 	BuildDescriptors();
 }
 
-void SobelFilter::OnResize(UINT newWidth, UINT newHeight)
+void DepthExtentFilter::OnResize(UINT newWidth, UINT newHeight)
 {
 	if((mWidth != newWidth) || (mHeight != newHeight))
 	{
@@ -54,7 +54,7 @@ void SobelFilter::OnResize(UINT newWidth, UINT newHeight)
 	}
 }
  
-void SobelFilter::Execute(ID3D12GraphicsCommandList* cmdList, 
+void DepthExtentFilter::Execute(ID3D12GraphicsCommandList* cmdList, 
 	                     ID3D12RootSignature* rootSig,
 	                     ID3D12PipelineState* pso,
 	                     CD3DX12_GPU_DESCRIPTOR_HANDLE input)
@@ -78,22 +78,22 @@ void SobelFilter::Execute(ID3D12GraphicsCommandList* cmdList,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ));
 }
 
-ID3D12Resource* SobelFilter::Output()
+ID3D12Resource* DepthExtentFilter::Output()
 {
 	return mOutput.Get();
 }
 
-D3D12_SHADER_RESOURCE_VIEW_DESC SobelFilter::SrvDesc()
+D3D12_SHADER_RESOURCE_VIEW_DESC DepthExtentFilter::SrvDesc()
 {
 	return msrvDesc;
 }
 
-CD3DX12_GPU_DESCRIPTOR_HANDLE SobelFilter::Srv() const
+CD3DX12_GPU_DESCRIPTOR_HANDLE DepthExtentFilter::Srv() const
 {
 	return mhGpuSrv;
 }
 
-void SobelFilter::BuildDescriptors()
+void DepthExtentFilter::BuildDescriptors()
 {
 	msrvDesc = {};
 	msrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -112,7 +112,7 @@ void SobelFilter::BuildDescriptors()
 	md3dDevice->CreateUnorderedAccessView(mOutput.Get(), nullptr, &uavDesc, mhCpuUav);
 }
 
-void SobelFilter::BuildResource()
+void DepthExtentFilter::BuildResource()
 {
 	// Note, compressed formats cannot be used for UAV.  We get error like:
 	// ERROR: ID3D11Device::CreateTexture2D: The format (0x4d, BC3_UNORM) 

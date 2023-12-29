@@ -8,20 +8,20 @@
 
 #include "../../../Common/d3dUtil.h"
 
-class SobelFilter
+class DepthExtentFilter
 {
 public:
 	///<summary>
 	/// The width and height should match the dimensions of the input texture to apply the filter.
 	/// Recreate when the screen is resized. 
 	///</summary>
-	SobelFilter(ID3D12Device* device,
+	DepthExtentFilter(ID3D12Device* device,
 		UINT width, UINT height,
 		DXGI_FORMAT format);
 		
-	SobelFilter(const SobelFilter& rhs)=delete;
-	SobelFilter& operator=(const SobelFilter& rhs)=delete;
-	~SobelFilter()=default;
+	DepthExtentFilter(const DepthExtentFilter& rhs)=delete;
+	DepthExtentFilter& operator=(const DepthExtentFilter& rhs)=delete;
+	~DepthExtentFilter()=default;
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE OutputSrv();
 

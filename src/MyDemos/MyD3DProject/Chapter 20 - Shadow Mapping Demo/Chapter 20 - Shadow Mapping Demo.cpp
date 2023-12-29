@@ -9,8 +9,7 @@
 #include "../../../Common/Camera.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
-#include "SobelFilter.h"
-
+#include "DepthExtentFilter.h"
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
@@ -144,7 +143,7 @@ private:
 	UINT mDebugTexHeapIndex = 0;
 	UINT mNullCubeSrvIndex = 0;
 	UINT mNullTexSrvIndex = 0;
-	UINT mSobelOutputHeapIndex = 0;
+	UINT mDepthExtentOutputHeapIndex = 0;
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhNullSrv;
     PassConstants mMainPassCB; // index 0 of pass cbuffer.
@@ -173,8 +172,7 @@ private:
 	DirectX::BoundingSphere mSceneBounds;
     POINT mLastMousePos;
 
-	//sobel filter related
-	std::unique_ptr<SobelFilter> mSobelFilter = nullptr;
+	std::unique_ptr<DepthExtentFilter> mDepthExtentFilter = nullptr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -229,7 +227,8 @@ bool ShadowMappingDemoApp::Initialize()
 
 	mShadowMap = std::make_unique<ShadowMap>(
 		md3dDevice.Get(), 2048, 2048);
-	mSobelFilter = std::make_unique<SobelFilter>(
+
+	mDepthExtentFilter = std::make_unique<DepthExtentFilter>(
 		md3dDevice.Get(),
 		2048, 2048,//same size as shadow map
 		mBackBufferFormat);
@@ -389,9 +388,9 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-	//run sobel edge detection on shadow map 
-	/*mSobelFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
-		mPSOs["sobel"].Get(), mShadowMap->Srv());*/
+	//run depth extent filter on shadow map 
+	mDepthExtentFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+		mPSOs["depthExtentCS"].Get(), mShadowMap->Srv());
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -675,7 +674,8 @@ void ShadowMappingDemoApp::DrawShadowMapDebug()
 	mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->Srv());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
 
-	mCommandList->SetGraphicsRootDescriptorTable(5, mSobelFilter->Srv());
+	//mCommandList->SetGraphicsRootDescriptorTable(5, mSobelFilter->Srv());
+	mCommandList->SetGraphicsRootDescriptorTable(5, mDepthExtentFilter->Srv());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);
 }
 
@@ -875,14 +875,14 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 	srvDesc.TextureCube.MipLevels = 1;
 	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
 
-	mSobelOutputHeapIndex = mDebugTexHeapIndex + 1;
+	mDepthExtentOutputHeapIndex = mDebugTexHeapIndex + 1;
 
-	mSobelFilter->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mSobelOutputHeapIndex, mCbvSrvUavDescriptorSize),
+	mDepthExtentFilter->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDepthExtentOutputHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDepthExtentOutputHeapIndex, mCbvSrvUavDescriptorSize),
 		mCbvSrvUavDescriptorSize);
 
-	mNullCubeSrvIndex = mSobelOutputHeapIndex + mSobelFilter->DescriptorCount();
+	mNullCubeSrvIndex = mDepthExtentOutputHeapIndex + mDepthExtentFilter->DescriptorCount();
 	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
 	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
@@ -922,7 +922,7 @@ void ShadowMappingDemoApp::BuildShadersAndInputLayout()
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders\\Sky.hlsl", nullptr, "PS", "ps_5_1");
 
-	mShaders["sobelCS"] = d3dUtil::CompileShader(L"Shaders\\Sobel.hlsl", nullptr, "SobelCS", "cs_5_0");
+	mShaders["depthExtentCS"] = d3dUtil::CompileShader(L"Shaders\\DepthExtent.hlsl", nullptr, "DepthExtentCS", "cs_5_0");
 
     mInputLayout =
     {
@@ -1290,17 +1290,17 @@ void ShadowMappingDemoApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
 
 	//
-	// PSO for sobel compute shader
+	// PSO for depth extent compute shader
 	//
-	D3D12_COMPUTE_PIPELINE_STATE_DESC sobelPSO = {};
-	sobelPSO.pRootSignature = mPostProcessRootSignature.Get();
-	sobelPSO.CS =
+	D3D12_COMPUTE_PIPELINE_STATE_DESC depthExtentPSO = {};
+	depthExtentPSO.pRootSignature = mPostProcessRootSignature.Get();
+	depthExtentPSO.CS =
 	{
-		reinterpret_cast<BYTE*>(mShaders["sobelCS"]->GetBufferPointer()),
-		mShaders["sobelCS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["depthExtentCS"]->GetBufferPointer()),
+		mShaders["depthExtentCS"]->GetBufferSize()
 	};
-	sobelPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&sobelPSO, IID_PPV_ARGS(&mPSOs["sobel"])));
+	depthExtentPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateComputePipelineState(&depthExtentPSO, IID_PPV_ARGS(&mPSOs["depthExtentCS"])));
 }
 
 void ShadowMappingDemoApp::BuildFrameResources()
@@ -1396,19 +1396,19 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::Debug].push_back(debugShadowMapItem.get());
 	mAllRitems.push_back(std::move(debugShadowMapItem));
 
-	auto debugShadowMapSobelItem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&debugShadowMapSobelItem->World, XMMatrixTranslation(0.0f, 1.0f, 0.0f));
-	debugShadowMapSobelItem->TexTransform = MathHelper::Identity4x4();
-	debugShadowMapSobelItem->ObjCBIndex = 2;
-	debugShadowMapSobelItem->Mat = mMaterials["bricks0"].get();
-	debugShadowMapSobelItem->Geo = mGeometries["shapeGeo"].get();
-	debugShadowMapSobelItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	debugShadowMapSobelItem->IndexCount = debugShadowMapSobelItem->Geo->DrawArgs["quad"].IndexCount;
-	debugShadowMapSobelItem->StartIndexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].StartIndexLocation;
-	debugShadowMapSobelItem->BaseVertexLocation = debugShadowMapSobelItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+	auto debugShadowMapDepthExtentItem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&debugShadowMapDepthExtentItem->World, XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	debugShadowMapDepthExtentItem->TexTransform = MathHelper::Identity4x4();
+	debugShadowMapDepthExtentItem->ObjCBIndex = 2;
+	debugShadowMapDepthExtentItem->Mat = mMaterials["bricks0"].get();
+	debugShadowMapDepthExtentItem->Geo = mGeometries["shapeGeo"].get();
+	debugShadowMapDepthExtentItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	debugShadowMapDepthExtentItem->IndexCount = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].IndexCount;
+	debugShadowMapDepthExtentItem->StartIndexLocation = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].StartIndexLocation;
+	debugShadowMapDepthExtentItem->BaseVertexLocation = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Debug2].push_back(debugShadowMapSobelItem.get());
-	mAllRitems.push_back(std::move(debugShadowMapSobelItem));
+	mRitemLayer[(int)RenderLayer::Debug2].push_back(debugShadowMapDepthExtentItem.get());
+	mAllRitems.push_back(std::move(debugShadowMapDepthExtentItem));
 
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
