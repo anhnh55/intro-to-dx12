@@ -102,11 +102,10 @@ void ShadowMap::BuildDescriptors()
 	msrvDesc = {};
 	msrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     msrvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS; 
-    //msrvDesc.Format = DXGI_FORMAT_X24_TYPELESS_G8_UINT;
 	msrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	msrvDesc.Texture2D.MostDetailedMip = 0;
 	msrvDesc.Texture2D.MipLevels = 1;
-	msrvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	//msrvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
     msrvDesc.Texture2D.PlaneSlice = 0;
     md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &msrvDesc, mhCpuSrv);
 

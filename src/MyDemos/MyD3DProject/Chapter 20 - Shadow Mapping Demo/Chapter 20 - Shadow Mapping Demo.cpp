@@ -1236,16 +1236,16 @@ void ShadowMappingDemoApp::BuildPSOs()
 	shadowmapDSS.StencilReadMask = 0xff;
 	shadowmapDSS.StencilWriteMask = 0xff;
 
-	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_REPLACE;
-	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_REPLACE;
-	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR;
+	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
 	shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	//shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	shadowmapDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR;
-	shadowmapDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+	shadowmapDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	shadowmapDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
 
 	//
