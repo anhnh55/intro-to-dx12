@@ -134,7 +134,7 @@ void StencilDemo::Draw(const GameTimer& gt)
 	//constant buffer view (mCbvHeap in Shapes Demo) is not needed
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
-	//draw opaque objects first
+	//draw opaque objects first but not the mirror
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	// Mark the visible mirror pixels in the stencil buffer with the value 1
@@ -475,10 +475,10 @@ void StencilDemo::BuildPSOs()
 	mirrorDSS.StencilReadMask = 0xff;
 	mirrorDSS.StencilWriteMask = 0xff;
 
-	mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
-	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;//when stencil test fails
+	mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;//stencil pass but depth fail
+	mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;//stencil and depth test both pass 
+	mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;//stencil comparison function
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	mirrorDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;

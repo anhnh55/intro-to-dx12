@@ -389,8 +389,8 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 	//run depth extent filter on shadow map 
-	mDepthExtentFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
-		mPSOs["depthExtentCS"].Get(), mShadowMap->Srv());
+	//mDepthExtentFilter->Execute(mCommandList.Get(), mPostProcessRootSignature.Get(),
+	//	mPSOs["depthExtentCS"].Get(), mShadowMap->Srv());
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -419,8 +419,6 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
 	DrawShadowMapDebug();
-	/*mCommandList->SetPipelineState(mPSOs["debug"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);*/
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
@@ -638,7 +636,7 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 {
 	mCommandList->RSSetViewports(1, &mShadowMap->Viewport());
 	mCommandList->RSSetScissorRects(1, &mShadowMap->ScissorRect());
-
+	
 	// Change to DEPTH_WRITE.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
 		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
@@ -648,7 +646,7 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 	// Clear the back buffer and depth buffer.
 	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(),
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
+	mCommandList->OMSetStencilRef(0);
 	// Set null render target because we are only going to draw to
 	// depth buffer.  Setting a null render target will disable color writes.
 	// Note the active PSO also must specify a render target count of 0.
@@ -672,11 +670,10 @@ void ShadowMappingDemoApp::DrawShadowMapDebug()
 {
 	mCommandList->SetPipelineState(mPSOs["debug"].Get());
 	mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->Srv());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);//draw shadow map
 
-	//mCommandList->SetGraphicsRootDescriptorTable(5, mSobelFilter->Srv());
-	mCommandList->SetGraphicsRootDescriptorTable(5, mDepthExtentFilter->Srv());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);
+	//mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->DsvGpu());
+	//DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);//draw depth extent map
 }
 
 
@@ -861,13 +858,14 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
-
+	auto dsvGpuStart = mDsvHeap->GetGPUDescriptorHandleForHeapStart();
 	//shadow map 
 	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
 	mShadowMap->BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(dsvGpuStart, 1, mDsvDescriptorSize));
 
 	//texture for debug layer, resource view is nullptr for now, we will bind when draw debug
 	mDebugTexHeapIndex = mShadowMapHeapIndex + 1;
@@ -1224,9 +1222,35 @@ void ShadowMappingDemoApp::BuildPSOs()
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
+	
 	//
-   // PSO for shadow map pass.
-   //
+	//stencil desc for shadow map pass.
+	//the test will always pass. Each time stencil value is increased by 1.
+	//so that the pixel that doesn't contribute to shadow will have stencil value of 1 why other will have stencil value greater than 1 
+	//
+	D3D12_DEPTH_STENCIL_DESC shadowmapDSS;
+	shadowmapDSS.DepthEnable = true;
+	shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	shadowmapDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	shadowmapDSS.StencilEnable = true;
+	shadowmapDSS.StencilReadMask = 0xff;
+	shadowmapDSS.StencilWriteMask = 0xff;
+
+	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_REPLACE;
+	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_REPLACE;
+	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+	shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	//shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+	// We are not rendering backfacing polygons, so these settings do not matter.
+	shadowmapDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR;
+	shadowmapDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+	shadowmapDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+	//
+	//PSO for shadow map pass.
+	//
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = opaquePsoDesc;
 	smapPsoDesc.RasterizerState.DepthBias = 100000;
 	smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
@@ -1246,6 +1270,7 @@ void ShadowMappingDemoApp::BuildPSOs()
 	// Shadow map pass does not have a render target.
 	smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
 	smapPsoDesc.NumRenderTargets = 0;
+	smapPsoDesc.DepthStencilState = shadowmapDSS;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
 	//
 	// PSO for debug layer.
@@ -1396,19 +1421,19 @@ void ShadowMappingDemoApp::BuildRenderItems()
 	mRitemLayer[(int)RenderLayer::Debug].push_back(debugShadowMapItem.get());
 	mAllRitems.push_back(std::move(debugShadowMapItem));
 
-	auto debugShadowMapDepthExtentItem = std::make_unique<RenderItem>();
-	XMStoreFloat4x4(&debugShadowMapDepthExtentItem->World, XMMatrixTranslation(0.0f, 1.0f, 0.0f));
-	debugShadowMapDepthExtentItem->TexTransform = MathHelper::Identity4x4();
-	debugShadowMapDepthExtentItem->ObjCBIndex = 2;
-	debugShadowMapDepthExtentItem->Mat = mMaterials["bricks0"].get();
-	debugShadowMapDepthExtentItem->Geo = mGeometries["shapeGeo"].get();
-	debugShadowMapDepthExtentItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	debugShadowMapDepthExtentItem->IndexCount = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].IndexCount;
-	debugShadowMapDepthExtentItem->StartIndexLocation = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].StartIndexLocation;
-	debugShadowMapDepthExtentItem->BaseVertexLocation = debugShadowMapDepthExtentItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+	auto debugShadowMapStencilBufferItem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&debugShadowMapStencilBufferItem->World, XMMatrixTranslation(0.0f, 1.0f, 0.0f));
+	debugShadowMapStencilBufferItem->TexTransform = MathHelper::Identity4x4();
+	debugShadowMapStencilBufferItem->ObjCBIndex = 2;
+	debugShadowMapStencilBufferItem->Mat = mMaterials["bricks0"].get();
+	debugShadowMapStencilBufferItem->Geo = mGeometries["shapeGeo"].get();
+	debugShadowMapStencilBufferItem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	debugShadowMapStencilBufferItem->IndexCount = debugShadowMapStencilBufferItem->Geo->DrawArgs["quad"].IndexCount;
+	debugShadowMapStencilBufferItem->StartIndexLocation = debugShadowMapStencilBufferItem->Geo->DrawArgs["quad"].StartIndexLocation;
+	debugShadowMapStencilBufferItem->BaseVertexLocation = debugShadowMapStencilBufferItem->Geo->DrawArgs["quad"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Debug2].push_back(debugShadowMapDepthExtentItem.get());
-	mAllRitems.push_back(std::move(debugShadowMapDepthExtentItem));
+	mRitemLayer[(int)RenderLayer::Debug2].push_back(debugShadowMapStencilBufferItem.get());
+	mAllRitems.push_back(std::move(debugShadowMapStencilBufferItem));
 
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
