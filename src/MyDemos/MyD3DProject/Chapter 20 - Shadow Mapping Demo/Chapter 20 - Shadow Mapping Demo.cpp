@@ -262,7 +262,7 @@ void ShadowMappingDemoApp::CreateRtvAndDsvDescriptorHeaps()
 
 	// Add +1 DSV for shadow map.
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-	dsvHeapDesc.NumDescriptors = 2; //normally it is just 1 for depth map. But we need 1 more for shadow map which is actually a depth map for light view
+	dsvHeapDesc.NumDescriptors = 2; //normally it is just 1 for depth map. But we need 1 more for shadow map (which is actually a depth map for light view)
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
@@ -396,7 +396,7 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-
+	mCommandList->OMSetStencilRef(2);
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
@@ -410,9 +410,10 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor); //t0,t1
 
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+	
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-	DrawShadowMapDebug();
+	//DrawShadowMapDebug();
 
 	mCommandList->SetPipelineState(mPSOs["sky"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Sky]);
@@ -1183,8 +1184,31 @@ void ShadowMappingDemoApp::BuildSkullGeometry()
 
 void ShadowMappingDemoApp::BuildPSOs()
 {
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+	//
+//stencil desc for shadow map pass.
+//the test will always pass. Each time stencil value is increased by 1.
+//so that the pixel that doesn't contribute to shadow will have stencil value of 1 why other will have stencil value greater than 1 
+//
+	D3D12_DEPTH_STENCIL_DESC shadowmapDSS;
+	shadowmapDSS.DepthEnable = true;
+	shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	shadowmapDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	shadowmapDSS.StencilEnable = true;
+	shadowmapDSS.StencilReadMask = 0xff;
+	shadowmapDSS.StencilWriteMask = 0xff;
 
+	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR_SAT;
+	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR_SAT;
+	shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+
+	// We are not rendering backfacing polygons, so these settings do not matter.
+	shadowmapDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	shadowmapDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 	//
 	// PSO for opaque objects.
 	//
@@ -1211,33 +1235,9 @@ void ShadowMappingDemoApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	//opaquePsoDesc.DepthStencilState = shadowmapDSS;
+	//opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
-
-	
-	//
-	//stencil desc for shadow map pass.
-	//the test will always pass. Each time stencil value is increased by 1.
-	//so that the pixel that doesn't contribute to shadow will have stencil value of 1 why other will have stencil value greater than 1 
-	//
-	D3D12_DEPTH_STENCIL_DESC shadowmapDSS;
-	shadowmapDSS.DepthEnable = true;
-	shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	//shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	shadowmapDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	shadowmapDSS.StencilEnable = true;
-	shadowmapDSS.StencilReadMask = 0xff;
-	shadowmapDSS.StencilWriteMask = 0xff;
-
-	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR_SAT;
-	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR_SAT;
-	shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-
-	// We are not rendering backfacing polygons, so these settings do not matter.
-	shadowmapDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
 
 	//
 	//PSO for shadow map pass.

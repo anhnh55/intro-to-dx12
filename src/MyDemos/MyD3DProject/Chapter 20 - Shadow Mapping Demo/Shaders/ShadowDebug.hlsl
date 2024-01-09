@@ -35,13 +35,15 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-	//float4 sample = gDebugTex.Sample(gsamLinearWrap, pin.TexC);
-	uint2 sample = gDebugTex[pin.TexC];
+	float4 sample = gDebugTex.Sample(gsamLinearWrap, pin.TexC);
+	//uint2 sample = gDebugTex[pin.TexC];
 	/*if (sample.g < 1)
 		sample.g = 0;
 	else
 		sample.g = 1;*/
-	return float4(sample.ggg, 1.0f);
+	/*if (sample.g == 0)
+		sample.g = 1;*/
+		return float4(sample.ggg, 1.0f);
 	//return float4(gDebugTex.Sample(gsamLinearClamp, pin.TexC).www, 1.0f);
 }
 
