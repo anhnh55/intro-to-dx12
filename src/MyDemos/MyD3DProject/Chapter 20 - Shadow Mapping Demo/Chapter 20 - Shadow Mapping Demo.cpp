@@ -9,7 +9,6 @@
 #include "../../../Common/Camera.h"
 #include "FrameResource.h"
 #include "ShadowMap.h"
-#include "DepthExtentFilter.h"
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
@@ -143,7 +142,6 @@ private:
 	UINT mDebugTexHeapIndex = 0;
 	UINT mNullCubeSrvIndex = 0;
 	UINT mNullTexSrvIndex = 0;
-	UINT mDepthExtentOutputHeapIndex = 0;
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE mhNullSrv;
     PassConstants mMainPassCB; // index 0 of pass cbuffer.
@@ -171,8 +169,6 @@ private:
 
 	DirectX::BoundingSphere mSceneBounds;
     POINT mLastMousePos;
-
-	std::unique_ptr<DepthExtentFilter> mDepthExtentFilter = nullptr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -225,13 +221,11 @@ bool ShadowMappingDemoApp::Initialize()
 
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 
+	//mShadowMap = std::make_unique<ShadowMap>(
+	//	md3dDevice.Get(), 2048, 2048);
 	mShadowMap = std::make_unique<ShadowMap>(
-		md3dDevice.Get(), 2048, 2048);
+		md3dDevice.Get(), mClientWidth, mClientHeight);
 
-	mDepthExtentFilter = std::make_unique<DepthExtentFilter>(
-		md3dDevice.Get(),
-		2048, 2048,//same size as shadow map
-		mBackBufferFormat);
 	LoadTextures();
 	BuildRootSignature();
 	BuildPostProcessRootSignature();
@@ -413,7 +407,7 @@ void ShadowMappingDemoApp::Draw(const GameTimer& gt)
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor); //t0,t1
 
 	mCommandList->SetPipelineState(mPSOs["opaque"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
@@ -639,14 +633,14 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 	
 	// Change to DEPTH_WRITE.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
-		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+		D3D12_RESOURCE_STATE_DEPTH_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
 	// Clear the back buffer and depth buffer.
 	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(),
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-	mCommandList->OMSetStencilRef(0);
+	mCommandList->OMSetStencilRef(1);
 	// Set null render target because we are only going to draw to
 	// depth buffer.  Setting a null render target will disable color writes.
 	// Note the active PSO also must specify a render target count of 0.
@@ -663,15 +657,21 @@ void ShadowMappingDemoApp::DrawSceneToShadowMap()
 
 	// Change back to GENERIC_READ so we can read the texture in a shader.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
-		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ));
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_DEPTH_READ));
 }
 
 void ShadowMappingDemoApp::DrawShadowMapDebug()
 {
+	// Change back to GENERIC_READ so we can read the texture in a shader.
+	//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+	//	D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_READ));
 	mCommandList->SetPipelineState(mPSOs["debug"].Get());
-	mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->Srv());
+	//mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->Srv());
+	mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->SrvStencil());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug]);//draw shadow map
-
+	// Change back to GENERIC_READ so we can read the texture in a shader.
+	//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+	//	D3D12_RESOURCE_STATE_DEPTH_READ, D3D12_RESOURCE_STATE_GENERIC_READ));
 	//mCommandList->SetGraphicsRootDescriptorTable(5, mShadowMap->DsvGpu());
 	//DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Debug2]);//draw depth extent map
 }
@@ -858,29 +858,20 @@ void ShadowMappingDemoApp::BuildDescriptorHeaps()
 	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
-	auto dsvGpuStart = mDsvHeap->GetGPUDescriptorHandleForHeapStart();
 	//shadow map 
 	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
 	mShadowMap->BuildDescriptors(
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
 		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(dsvGpuStart, 1, mDsvDescriptorSize));
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
 
-	//texture for debug layer, resource view is nullptr for now, we will bind when draw debug
+	//descriptor for stencil buffer
 	mDebugTexHeapIndex = mShadowMapHeapIndex + 1;
-	srvDesc.TextureCube.MostDetailedMip = 0;
-	srvDesc.TextureCube.MipLevels = 1;
-	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
+	mShadowMap->BuildDescriptorsStencil(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDebugTexHeapIndex, mCbvSrvUavDescriptorSize));
 
-	mDepthExtentOutputHeapIndex = mDebugTexHeapIndex + 1;
-
-	mDepthExtentFilter->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDepthExtentOutputHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDepthExtentOutputHeapIndex, mCbvSrvUavDescriptorSize),
-		mCbvSrvUavDescriptorSize);
-
-	mNullCubeSrvIndex = mDepthExtentOutputHeapIndex + mDepthExtentFilter->DescriptorCount();
+	mNullCubeSrvIndex = mDebugTexHeapIndex + 1;
 	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
 
 	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
@@ -1231,16 +1222,16 @@ void ShadowMappingDemoApp::BuildPSOs()
 	D3D12_DEPTH_STENCIL_DESC shadowmapDSS;
 	shadowmapDSS.DepthEnable = true;
 	shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	//shadowmapDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	shadowmapDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 	shadowmapDSS.StencilEnable = true;
 	shadowmapDSS.StencilReadMask = 0xff;
 	shadowmapDSS.StencilWriteMask = 0xff;
 
 	shadowmapDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR;
-	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+	shadowmapDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR_SAT;
+	shadowmapDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR_SAT;
 	shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	//shadowmapDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NEVER;
 
 	// We are not rendering backfacing polygons, so these settings do not matter.
 	shadowmapDSS.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
@@ -1271,6 +1262,7 @@ void ShadowMappingDemoApp::BuildPSOs()
 	smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
 	smapPsoDesc.NumRenderTargets = 0;
 	smapPsoDesc.DepthStencilState = shadowmapDSS;
+	smapPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mPSOs["shadow_opaque"])));
 	//
 	// PSO for debug layer.
